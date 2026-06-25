@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>芭扎民宿管理後台 | bazar花園</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="admin-body">
+
+  <!-- Admin Login Overlay (displays if not logged in) -->
+  <div class="admin-login-overlay" id="adminLoginOverlay">
+    <div class="admin-login-box">
+      <div class="admin-login-logo">
+        <span style="color: var(--primary-color);"><i class="fa-solid fa-seedling"></i> bazar花園</span> 後台管理
+      </div>
+      <p style="color: var(--text-light); margin-bottom: 24px; font-size: 14px;">請輸入管理員登入密碼 (預設: `bazar888`)</p>
+      
+      <div class="form-group" style="text-align: left;">
+        <label for="adminPassword">安全密碼</label>
+        <input type="password" id="adminPassword" placeholder="請輸入登入密碼" style="width: 100%;" onkeydown="if(event.key==='Enter') loginAdmin()">
+      </div>
+      
+      <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="loginAdmin()">登入系統</button>
+      <p id="loginErrorMsg" style="color: #dc2626; font-size: 13px; margin-top: 12px; display: none; font-weight: 600;"></p>
+    </div>
+  </div>
+
+  <!-- Main Admin Dashboard (only accessible if logged in) -->
+  <div id="adminDashboard" style="display: none;">
+    <!-- Top Nav -->
+    <header class="admin-header">
+      <div class="admin-logo"><i class="fa-solid fa-seedling"></i> bazar花園 後台管理系統</div>
+      <div class="admin-user">
+        <span style="font-size: 14px; font-weight: 600;"><i class="fa-solid fa-user-tie"></i> 施勇銘 (阿銘)</span>
+        <button class="btn-logout" onclick="logoutAdmin()"><i class="fa-solid fa-right-from-bracket"></i> 登出</button>
+      </div>
+    </header>
+
+    <div class="admin-container">
+      <!-- Top Stats Cards -->
+      <div class="admin-stats-grid">
+        <div class="stat-card">
+          <span class="stat-title">已付總營收</span>
+          <span class="stat-value" id="stat_paidRevenue">NT$ 0</span>
+          <span class="stat-sub" id="stat_totalRevenue">預估總額: NT$ 0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-title">已付款訂單數</span>
+          <span class="stat-value" id="stat_paidBookings">0 筆</span>
+          <span class="stat-sub" id="stat_totalBookings">總訂單數: 0 筆</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-title">待付款訂單</span>
+          <span class="stat-value" id="stat_pendingBookings" style="color: #d97706;">0 筆</span>
+          <span class="stat-sub" style="color: #d97706;">需手動或線上付清</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-title">民宿位置</span>
+          <span class="stat-value" style="font-size: 18px;">琉球鄉中山路92-9號</span>
+          <span class="stat-sub" style="color: var(--primary-color);">電話: 0975080788</span>
+        </div>
+      </div>
+
+      <!-- Layout: Sidebar + Content -->
+      <div class="admin-layout">
+        <!-- Sidebar Navigation -->
+        <ul class="admin-sidebar">
+          <li class="active" id="tab_bookings_nav"><a href="javascript:switchTab('bookings')"><i class="fa-solid fa-calendar-check"></i> 訂單明細管理</a></li>
+          <li id="tab_stats_nav"><a href="javascript:switchTab('stats')"><i class="fa-solid fa-chart-pie"></i> 營運分析統計</a></li>
+          <li id="tab_settings_nav"><a href="javascript:switchTab('settings')"><i class="fa-solid fa-gears"></i> 後台密碼設定</a></li>
+        </ul>
+
+        <!-- Main Content Box -->
+        <div class="admin-content-box">
+          
+          <!-- Tab 1: Bookings Management -->
+          <div id="tab_bookings">
+            <div class="table-header-row">
+              <h3 style="font-size: 20px;"><i class="fa-solid fa-list-ul"></i> 訂單列表</h3>
+              
+              <div style="display: flex; gap: 16px;">
+                <select id="filterStatus" style="width: 130px; padding: 8px 12px;" onchange="renderBookingsTable()">
+                  <option value="all">所有狀態</option>
+                  <option value="Pending">待付款</option>
+                  <option value="Paid">已付款</option>
+                  <option value="Completed">已完成</option>
+                  <option value="Cancelled">已取消</option>
+                </select>
+                <input type="text" id="searchQuery" class="search-input" placeholder="搜尋姓名 / 電話" oninput="renderBookingsTable()" style="padding: 8px 12px;">
+              </div>
+            </div>
+
+            <div class="admin-table-container">
+              <table class="admin-table" id="bookingsTable">
+                <thead>
+                  <tr>
+                    <th>訂單編號</th>
+                    <th>聯絡人</th>
+                    <th>電話</th>
+                    <th>房型</th>
+                    <th>住房期間</th>
+                    <th>總價</th>
+                    <th>狀態</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="bookingsTableBody">
+                  <!-- JS generated -->
+                </tbody>
+              </table>
+              <div id="emptyBookingsMsg" style="text-align: center; padding: 40px; color: var(--text-light); display: none;">
+                <i class="fa-solid fa-folder-open" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+                目前無符合篩選條件的訂單。
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 2: Analytics & Charts -->
+          <div id="tab_stats" style="display: none;">
+            <h3 style="font-size: 20px; margin-bottom: 24px;"><i class="fa-solid fa-chart-bar"></i> 營運數據分析</h3>
+            
+            <div class="chart-container">
+              <div class="chart-title">房型預訂次數排名</div>
+              <div class="chart-bars" id="roomStatsChart">
+                <!-- Dynamic SVG Bars -->
+              </div>
+            </div>
+
+            <div class="chart-container">
+              <div class="chart-title">加購套裝行程熱銷榜</div>
+              <div class="chart-bars" id="packageStatsChart">
+                <!-- Dynamic SVG Bars -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab 3: Password Settings -->
+          <div id="tab_settings" style="display: none;">
+            <h3 style="font-size: 20px; margin-bottom: 24px;"><i class="fa-solid fa-lock"></i> 密碼設定管理</h3>
+            
+            <div style="max-width: 400px;">
+              <div class="form-group">
+                <label for="newPassword">新管理密碼</label>
+                <input type="password" id="newPassword" placeholder="輸入新密碼 (至少 4 碼)">
+              </div>
+              <div class="form-group">
+                <label for="confirmPassword">再次確認新密碼</label>
+                <input type="password" id="confirmPassword" placeholder="再次確認密碼">
+              </div>
+              <button class="btn-primary" onclick="updateAdminPassword()">更新管理密碼</button>
+              <p id="passwordMsg" style="margin-top: 16px; font-size: 14px; font-weight: 600;"></p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/admin.js"></script>
+</body>
+</html>
