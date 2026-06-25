@@ -18,6 +18,17 @@
 *   **資料庫 (Database)**:
     *   **Storage**: 本地 JSON 檔案型資料庫 (`db.json`)，避免了 SQLite3 等二進位資料庫在 Windows 環境下安裝編譯失敗的問題，具備極佳的移植性與備份便利性。
 
+### ⚙️ 開發與運行環境版本 (Versions of Tools)
+
+本專案在以下技術環境下完成開發與完整測試：
+
+| 工具/套件 (Tool/Package) | 開發與測試版本 (Version) | 備註 (Remarks) |
+| :--- | :--- | :--- |
+| **Node.js** | `v24.17.0` | 建議使用 `v18.0.0` 或以上之 LTS 版本 |
+| **npm** | `v11.13.0` | 伴隨 Node.js 安裝之包管理器 |
+| **Express.js** | `v4.19.2` | 後端核心 Web 框架 |
+| **GitHub CLI (gh)** | `v2.95.0` | 用於快速建立與部署 Github 遠端儲存庫 |
+
 ---
 
 ## 🗄️ 資料庫 Schema (Database Schema)
