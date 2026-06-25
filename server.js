@@ -8,7 +8,17 @@ const DB_PATH = path.join(__dirname, 'db.json');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use('/bzzar', express.static(path.join(__dirname, 'public')));
+
+// Redirect root to /bzzar/
+app.get('/', (req, res) => {
+  res.redirect('/bzzar/');
+});
+
+// Redirect /bzzar without trailing slash
+app.get('/bzzar', (req, res) => {
+  res.redirect('/bzzar/');
+});
 
 // Simple JSON Database Initialization
 function readDb() {
@@ -395,9 +405,14 @@ app.put('/api/admin/settings/password', requireAdmin, (req, res) => {
   res.json({ success: true, message: '管理密碼修改成功！' });
 });
 
-// Fallback: Route every other request to index.html (SPA feel)
-app.get('*', (req, res) => {
+// Fallback: Route /bzzar/* requests to index.html (SPA feel)
+app.get('/bzzar/*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Any other route redirect to /bzzar/
+app.get('*', (req, res) => {
+  res.redirect('/bzzar/');
 });
 
 app.listen(PORT, () => {

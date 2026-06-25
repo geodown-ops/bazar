@@ -501,7 +501,7 @@ btnSubmitBooking.addEventListener('click', async () => {
     const result = await res.json();
     if (result.success) {
       // Redirect to simulated payment page
-      window.location.href = `/payment.html?id=${result.bookingId}`;
+      window.location.href = `payment.html?id=${result.bookingId}`;
     } else {
       alert(`預約失敗: ${result.message}`);
     }
