@@ -599,8 +599,12 @@ async function uploadCmsImage(type) {
         preview.style.display = 'block';
         alert('相片上傳成功！');
       } else if (type === 'carousel') {
+        const cBox = document.getElementById('carousel_preview_box');
+        if (cBox) cBox.style.display = 'none';
         await addCarouselImage(url);
       } else if (type === 'gallery') {
+        const gBox = document.getElementById('gallery_preview_box');
+        if (gBox) gBox.style.display = 'none';
         await addGalleryItem(url);
       }
     } else {
@@ -927,4 +931,52 @@ async function saveRulesConfig() {
     rulesConfigMsg.textContent = '伺服器連線錯誤。';
     rulesConfigMsg.style.color = '#dc2626';
   }
+}
+
+// ==========================================
+// Live Photo Upload Instant Previews
+// ==========================================
+function setupImagePreviewListeners() {
+  const roomFile = document.getElementById('editRoom_file');
+  if (roomFile) {
+    roomFile.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const previewImg = document.getElementById('editRoom_preview');
+        previewImg.src = URL.createObjectURL(file);
+        previewImg.style.display = 'inline-block';
+      }
+    });
+  }
+
+  const carouselFile = document.getElementById('carousel_file');
+  if (carouselFile) {
+    carouselFile.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      const box = document.getElementById('carousel_preview_box');
+      const img = document.getElementById('carousel_preview');
+      if (file && box && img) {
+        img.src = URL.createObjectURL(file);
+        box.style.display = 'block';
+      }
+    });
+  }
+
+  const galleryFile = document.getElementById('gallery_file');
+  if (galleryFile) {
+    galleryFile.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      const box = document.getElementById('gallery_preview_box');
+      const img = document.getElementById('gallery_preview');
+      if (file && box && img) {
+        img.src = URL.createObjectURL(file);
+        box.style.display = 'block';
+      }
+    });
+  }
+}
+
+document.addEventListener('DOMContentLoaded', setupImagePreviewListeners);
+if (document.readyState !== 'loading') {
+  setupImagePreviewListeners();
 }
