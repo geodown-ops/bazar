@@ -414,6 +414,14 @@ function showPasswordMsg(text, color) {
 // 12. CMS Content Management Logic
 // ==========================================
 
+function getImgSrc(url) {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+    return url;
+  }
+  return url.replace(/^(\.\.\/|\/)+/, '');
+}
+
 let cmsRooms = [];
 let cmsCarousel = [];
 let cmsGallery = [];
@@ -533,7 +541,7 @@ function openRoomEditor(roomId = null) {
     imgInput.value = imageUrl;
     
     if (imageUrl) {
-      previewImg.src = '../' + imageUrl; // Path correction for preview
+      previewImg.src = getImgSrc(imageUrl); // Path correction for preview
       previewImg.style.display = 'block';
     } else {
       previewImg.style.display = 'none';
@@ -595,7 +603,7 @@ async function uploadCmsImage(type) {
       if (type === 'room') {
         document.getElementById('editRoom_image').value = url;
         const preview = document.getElementById('editRoom_preview');
-        preview.src = '../' + url;
+        preview.src = getImgSrc(url);
         preview.style.display = 'block';
         alert('相片上傳成功！');
       } else if (type === 'carousel') {
@@ -719,7 +727,7 @@ function renderCmsCarousel() {
     div.style.padding = '0';
     div.innerHTML = `
       <div style="position:relative; width:100%; height:130px; overflow:hidden;">
-        <img src="../${slide.image}" style="width:100%; height:100%; object-fit:cover;">
+        <img src="${getImgSrc(slide.image)}" style="width:100%; height:100%; object-fit:cover;">
         <button onclick="deleteCarouselConfig(${index})" style="position:absolute; top:8px; right:8px; background-color:#dc2626; color:white; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer;" title="刪除此圖"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div style="padding:12px;">
@@ -802,7 +810,7 @@ function renderCmsGallery() {
     div.style.padding = '0';
     div.innerHTML = `
       <div style="position:relative; width:100%; height:130px; overflow:hidden;">
-        <img src="../${item.image}" style="width:100%; height:100%; object-fit:cover;">
+        <img src="${getImgSrc(item.image)}" style="width:100%; height:100%; object-fit:cover;">
         <button onclick="deleteGalleryConfig(${index})" class="btn-delete-gal" style="position:absolute; top:8px; right:8px; background-color:#dc2626; color:white; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer;" title="刪除此圖"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div style="padding:12px;">
