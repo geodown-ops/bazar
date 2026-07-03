@@ -11,6 +11,9 @@ const isHolidayPackageCheckbox = document.getElementById('isHolidayPackage');
 const packageHeader = document.querySelector('.package-header');
 const packageContent = document.getElementById('packageContent');
 
+// Dynamic room rates configuration loaded from API
+let roomRates = {};
+
 // Package Checkboxes & Qty Fields
 const pkgs = {
   ferry: {
@@ -98,23 +101,13 @@ menuToggle.addEventListener('click', () => {
   navLinks.classList.toggle('active');
 });
 
-// Close nav links when clicking a link
 document.querySelectorAll('.nav-links a').forEach(link => {
   link.addEventListener('click', () => {
     navLinks.classList.remove('active');
   });
 });
 
-// 2. Hero Slider
-const slides = document.querySelectorAll('#heroSlider .slide');
-let currentSlide = 0;
-setInterval(() => {
-  slides[currentSlide].classList.remove('active');
-  currentSlide = (currentSlide + 1) % slides.length;
-  slides[currentSlide].classList.add('active');
-}, 5000);
-
-// 3. Accordion Toggle
+// 2. Accordion Toggle
 packageHeader.addEventListener('click', () => {
   const isOpen = packageContent.style.display === 'block';
   packageContent.style.display = isOpen ? 'none' : 'block';
@@ -123,10 +116,9 @@ packageHeader.addEventListener('click', () => {
     icon.className = isOpen ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up';
   }
 });
-// Open by default on page load for better exposure
 packageContent.style.display = 'block';
 
-// 4. Set Default Dates (Today & Tomorrow)
+// 3. Set Default Dates (Today & Tomorrow)
 function initDates() {
   const today = new Date();
   const tomorrow = new Date();
@@ -135,7 +127,6 @@ function initDates() {
   checkInInput.value = today.toISOString().split('T')[0];
   checkOutInput.value = tomorrow.toISOString().split('T')[0];
   
-  // Set min check-in date
   checkInInput.min = today.toISOString().split('T')[0];
   updateCheckOutMin();
 }
@@ -147,7 +138,6 @@ function updateCheckOutMin() {
     minOut.setDate(minOut.getDate() + 1);
     checkOutInput.min = minOut.toISOString().split('T')[0];
     
-    // If current check-out is before new min check-out, update it
     if (new Date(checkOutInput.value) <= new Date(checkInVal)) {
       checkOutInput.value = minOut.toISOString().split('T')[0];
     }
@@ -160,22 +150,164 @@ checkInInput.addEventListener('change', () => {
 });
 checkOutInput.addEventListener('change', calculateClientPrice);
 
-// 5. Select Room Type from Room Cards
+// 4. Select Room Type from Room Cards
 function selectRoomType(type) {
   roomTypeSelect.value = type;
   calculateClientPrice();
-  // Scroll to booking form
   document.getElementById('booking').scrollIntoView({ behavior: 'smooth' });
 }
 
-// 6. Pricing Rules & Dynamic Client Calculator
-const roomRates = {
-  double: { weekday: 2000, summer: 2800, holiday: 2800, consecutive: 3200, name: '翠竹雙人房' },
-  quad: { weekday: 3000, summer: 3800, holiday: 3800, consecutive: 4800, name: '鄉村/自然/樸石四人房' },
-  pool_quad: { weekday: 4000, summer: 4800, holiday: 4800, consecutive: 5600, name: '弦木/澄花泳池四人房' },
-  charter: { weekday: 8000, summer: 10000, holiday: 10000, consecutive: 12000, name: '10人小包棟' }
-};
+// 5. Dynamic Content Loading & Rendering
+async function loadDynamicContent() {
+  try {
+    const res = await fetch('/api/config');
+    const result = await res.json();
+    
+    if (result.success && result.siteConfig) {
+      const config = result.siteConfig;
+      
+      // A. Render Hero Carousel
+      renderCarousel(config.carousel || []);
 
+      // B. Render Room Cards & Dropdown
+      renderRooms(config.rooms || []);
+
+      // C. Render Gallery
+      renderGallery(config.gallery || []);
+
+      // D. Render Rules
+      renderRules(config.rules || {});
+    }
+  } catch (err) {
+    console.error('Error loading dynamic B&B content:', err);
+  }
+}
+
+// Render Carousel Slider
+function renderCarousel(carousel) {
+  const heroSlider = document.getElementById('heroSlider');
+  heroSlider.innerHTML = '';
+  
+  carousel.forEach((slide, index) => {
+    const div = document.createElement('div');
+    div.className = `slide ${index === 0 ? 'active' : ''}`;
+    div.style.backgroundImage = `url('${slide.image}')`;
+    heroSlider.appendChild(div);
+  });
+
+  setupSliderLoop();
+}
+
+let sliderInterval = null;
+function setupSliderLoop() {
+  if (sliderInterval) clearInterval(sliderInterval);
+  
+  const slides = document.querySelectorAll('#heroSlider .slide');
+  if (slides.length <= 1) return;
+
+  let currentSlide = 0;
+  sliderInterval = setInterval(() => {
+    slides[currentSlide].classList.remove('active');
+    currentSlide = (currentSlide + 1) % slides.length;
+    slides[currentSlide].classList.add('active');
+  }, 5000);
+}
+
+// Render Room List & Rates setup
+function renderRooms(rooms) {
+  const roomsGrid = document.getElementById('roomsGrid');
+  roomsGrid.innerHTML = '';
+  roomTypeSelect.innerHTML = '';
+  roomRates = {}; // Clear rates config
+
+  rooms.forEach(room => {
+    // Populate local roomRates object for client side budget calculations
+    roomRates[room.id] = {
+      weekday: room.priceWeekday,
+      summer: room.priceSummer,
+      holiday: room.priceHoliday,
+      consecutive: room.priceConsecutive,
+      name: room.name
+    };
+
+    // Populate roomType select dropdown
+    const opt = document.createElement('option');
+    opt.value = room.id;
+    opt.textContent = room.name;
+    roomTypeSelect.appendChild(opt);
+
+    // Build card
+    const card = document.createElement('div');
+    card.className = 'room-card';
+    
+    const firstImg = room.images && room.images.length > 0 ? room.images[0] : 'assets/room_double.jpg';
+    const amenitiesHtml = room.amenities.map(a => `<span class="amenity">${a}</span>`).join('');
+    
+    // Guess capacity for badge
+    let capacityText = '2';
+    if (room.name.includes('四人') || room.id.includes('quad')) capacityText = '4';
+    else if (room.name.includes('包棟') || room.id.includes('charter')) capacityText = '10';
+
+    card.innerHTML = `
+      <div class="room-img-box">
+        <span class="room-badge">${capacityText} 人房</span>
+        <img src="${firstImg}" alt="${room.name}" class="room-img">
+      </div>
+      <div class="room-content">
+        <h3 class="room-title">${room.name}</h3>
+        <p class="room-desc">${room.description}</p>
+        <div class="room-amenities">
+          ${amenitiesHtml}
+        </div>
+        <div class="room-pricing">
+          <div class="price-item">平日房價 <span class="price-val">NT$ ${room.priceWeekday.toLocaleString()}</span></div>
+          <div class="price-item">假日/暑假 <span class="price-val">NT$ ${room.priceHoliday.toLocaleString()}</span></div>
+        </div>
+        <a href="#booking" class="btn-book-room" onclick="selectRoomType('${room.id}')">選擇此房型</a>
+      </div>
+    `;
+    roomsGrid.appendChild(card);
+  });
+}
+
+// Render Gallery Grid
+function renderGallery(gallery) {
+  const galleryGrid = document.getElementById('galleryGrid');
+  galleryGrid.innerHTML = '';
+
+  gallery.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'gallery-card';
+    card.onclick = () => openLightbox(item.image);
+    card.innerHTML = `
+      <img src="${item.image}" alt="${item.title}">
+      <div class="gallery-overlay">
+        <h4 class="gallery-title">${item.title}</h4>
+        <p class="gallery-desc">${item.desc}</p>
+      </div>
+    `;
+    galleryGrid.appendChild(card);
+  });
+}
+
+// Render Rules list and Payment block
+function renderRules(rules) {
+  const rulesList = document.getElementById('rulesList');
+  const paymentInfoText = document.getElementById('paymentInfoText');
+  
+  rulesList.innerHTML = '';
+  if (rules.reminders && rules.reminders.length > 0) {
+    rules.reminders.forEach(r => {
+      const li = document.createElement('li');
+      li.textContent = r;
+      rulesList.appendChild(li);
+    });
+  }
+
+  paymentInfoText.textContent = rules.payment || '';
+}
+
+// 6. Pricing Rules & Dynamic Client Calculator
 function calculateClientPrice() {
   const roomType = roomTypeSelect.value;
   const checkIn = checkInInput.value;
@@ -186,7 +318,7 @@ function calculateClientPrice() {
   const isHolidayPackage = isHolidayPackageCheckbox.checked;
   const totalPeople = adults + kids;
 
-  if (!checkIn || !checkOut) return;
+  if (!checkIn || !checkOut || !roomRates[roomType]) return;
 
   const inDate = new Date(checkIn);
   const outDate = new Date(checkOut);
@@ -223,7 +355,7 @@ function calculateClientPrice() {
   let packagePrice = 0;
   const selectedPackages = [];
 
-  // Round-trip ferry: Adult 430, Child 200
+  // Round-trip ferry
   if (pkgs.ferry.chk.checked) {
     const ferryAdultCount = parseInt(document.getElementById('ferry_adult_qty').value) || 0;
     const ferryKidCount = parseInt(document.getElementById('ferry_kid_qty').value) || 0;
@@ -232,7 +364,7 @@ function calculateClientPrice() {
     selectedPackages.push(`來回船票 x ${ferryAdultCount}大 ${ferryKidCount}小 (NT$ ${cost.toLocaleString()})`);
   }
 
-  // Scooter: 400 per 24 hours per scooter (shared by 2 people)
+  // Scooter
   if (pkgs.scooter.chk.checked) {
     const scooterCount = parseInt(document.getElementById('scooter_qty').value) || 0;
     const scooterDays = parseInt(document.getElementById('scooter_days').value) || nights;
@@ -331,7 +463,6 @@ function calculateClientPrice() {
     selectedPackages.push(`玻璃船票 x ${gbAdult}大 ${gbKid}小 (NT$ ${cost.toLocaleString()})`);
   }
 
-  // Render Package list in Summary Card
   summaryPackagesList.innerHTML = '';
   if (selectedPackages.length === 0) {
     const li = document.createElement('li');
@@ -351,12 +482,10 @@ function calculateClientPrice() {
   summaryTotal.textContent = `NT$ ${grandTotal.toLocaleString()}`;
 }
 
-// 7. Event listeners for quantity synchronization & cards display
+// 7. Event handlers setup
 function setupEventHandlers() {
-  // Recalculate price on any base details change
   roomTypeSelect.addEventListener('change', calculateClientPrice);
   adultsInput.addEventListener('change', () => {
-    // Sync default ferry adult quantity, bbq, etc.
     const val = parseInt(adultsInput.value) || 1;
     document.getElementById('ferry_adult_qty').value = val;
     document.getElementById('bbq_adult_qty').value = val;
@@ -364,7 +493,6 @@ function setupEventHandlers() {
     document.getElementById('aquarium_adult_qty').value = val;
     document.getElementById('glassBoat_adult_qty').value = val;
     
-    // Default scooter count is ceil(people/2)
     const total = val + (parseInt(kidsInput.value) || 0);
     document.getElementById('scooter_qty').value = Math.ceil(total / 2);
     
@@ -379,7 +507,6 @@ function setupEventHandlers() {
     document.getElementById('aquarium_kid_qty').value = val;
     document.getElementById('glassBoat_kid_qty').value = val;
     
-    // Default scooter count
     const total = val + (parseInt(adultsInput.value) || 1);
     document.getElementById('scooter_qty').value = Math.ceil(total / 2);
 
@@ -389,7 +516,7 @@ function setupEventHandlers() {
   isSummerCheckbox.addEventListener('change', calculateClientPrice);
   isHolidayPackageCheckbox.addEventListener('change', calculateClientPrice);
 
-  // Setup show/hide handlers for each package checkbox
+  // Setup package toggle checkboxes
   Object.keys(pkgs).forEach(key => {
     const p = pkgs[key];
     p.chk.addEventListener('change', () => {
@@ -403,7 +530,6 @@ function setupEventHandlers() {
       calculateClientPrice();
     });
 
-    // Also trigger on change of any sub-inputs (like quantity selectors)
     if (p.inputs) {
       p.inputs.forEach(input => {
         input.addEventListener('change', calculateClientPrice);
@@ -412,7 +538,7 @@ function setupEventHandlers() {
   });
 }
 
-// 8. Submit booking form to backend API
+// 8. Submit booking
 btnSubmitBooking.addEventListener('click', async () => {
   const name = document.getElementById('name').value.trim();
   const phone = document.getElementById('phone').value.trim();
@@ -431,7 +557,6 @@ btnSubmitBooking.addEventListener('click', async () => {
     return;
   }
 
-  // Package flags & inputs
   const packages = {};
   
   if (pkgs.ferry.chk.checked) {
@@ -500,7 +625,6 @@ btnSubmitBooking.addEventListener('click', async () => {
     });
     const result = await res.json();
     if (result.success) {
-      // Redirect to simulated payment page
       window.location.href = `payment.html?id=${result.bookingId}`;
     } else {
       alert(`預約失敗: ${result.message}`);
@@ -524,12 +648,15 @@ function closeLightbox() {
   lightboxModal.style.display = 'none';
 }
 
-// Esc key closes lightbox
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeLightbox();
 });
 
-// Init on load
-initDates();
-setupEventHandlers();
-calculateClientPrice();
+// Page Initialization
+async function initApp() {
+  initDates();
+  setupEventHandlers();
+  await loadDynamicContent(); // Load content from db.json dynamically
+}
+
+initApp();

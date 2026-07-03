@@ -27,6 +27,7 @@
           <li><a href="#rooms">特色房型</a></li>
           <li><a href="#booking">套裝估價</a></li>
           <li><a href="#gallery">生態寫真</a></li>
+          <li><a href="#rules">住宿需知</a></li>
           <li><a href="#contact">聯絡我們</a></li>
           <li><a href="#booking" class="btn-book-nav">立即訂房</a></li>
         </ul>
@@ -42,9 +43,7 @@
   <!-- Hero Section -->
   <section class="hero" id="home">
     <div class="hero-slider" id="heroSlider">
-      <div class="slide active" style="background-image: url('assets/pool_outdoor_1.jpg');"></div>
-      <div class="slide" style="background-image: url('assets/room_interior_1.jpg');"></div>
-      <div class="slide" style="background-image: url('assets/lobster_cave.jpg');"></div>
+      <!-- Loaded dynamically -->
     </div>
     <div class="hero-content">
       <p class="hero-tagline">小琉球環保貨櫃庭園民宿</p>
@@ -102,98 +101,8 @@
         <div class="section-divider"></div>
       </div>
       
-      <div class="rooms-grid">
-        <!-- Double Room -->
-        <div class="room-card">
-          <div class="room-img-box">
-            <span class="room-badge">2 人房</span>
-            <img src="assets/room_interior_1.jpg" alt="翠竹雙人房" class="room-img">
-          </div>
-          <div class="room-content">
-            <h3 class="room-title">翠竹雙人房</h3>
-            <p class="room-desc">自己旅行或背包客首選。房內區分為書寫公事桌、舒適臥房與獨立衛浴，戶外設有專屬的曬衣平台，享受幽靜安穩的休閒時光。</p>
-            <div class="room-amenities">
-              <span class="amenity">獨立陽台</span>
-              <span class="amenity">公事桌</span>
-              <span class="amenity">液晶電視</span>
-              <span class="amenity">無線上網</span>
-            </div>
-            <div class="room-pricing">
-              <div class="price-item">平日房價 <span class="price-val">NT$ 2,000</span></div>
-              <div class="price-item">假日/暑假 <span class="price-val">NT$ 2,800</span></div>
-            </div>
-            <a href="#booking" class="btn-book-room" onclick="selectRoomType('double')">選擇此房型</a>
-          </div>
-        </div>
-
-        <!-- Quad Room -->
-        <div class="room-card">
-          <div class="room-img-box">
-            <span class="room-badge">4 人房</span>
-            <img src="assets/room_interior_2.jpg" alt="芭札鄉村/自然/樸石四人房" class="room-img">
-          </div>
-          <div class="room-content">
-            <h3 class="room-title">鄉村 / 自然 / 樸石四人房</h3>
-            <p class="room-desc">適合低預算、無睡眠障礙的親友團體。特別採用 L 型格局設計，將兩張大床隔開，創造出兩間半獨立的雙人空間，兼顧互動與隱私。</p>
-            <div class="room-amenities">
-              <span class="amenity">L型獨立感</span>
-              <span class="amenity">兩張大床</span>
-              <span class="amenity">小冰箱</span>
-              <span class="amenity">盥洗備品</span>
-            </div>
-            <div class="room-pricing">
-              <div class="price-item">平日房價 <span class="price-val">NT$ 3,000</span></div>
-              <div class="price-item">假日/暑假 <span class="price-val">NT$ 3,800</span></div>
-            </div>
-            <a href="#booking" class="btn-book-room" onclick="selectRoomType('quad')">選擇此房型</a>
-          </div>
-        </div>
-
-        <!-- Pool Quad Room -->
-        <div class="room-card">
-          <div class="room-img-box">
-            <span class="room-badge">私人泳池房 (4人)</span>
-            <img src="assets/pool_outdoor_1.jpg" alt="弦木/澄花四人房" class="room-img">
-          </div>
-          <div class="room-content">
-            <h3 class="room-title">弦木 / 澄花四人房</h3>
-            <p class="room-desc">極致豪華渡假首選。客房設有專屬的<b>私人獨立游泳池 / 戲水池</b>，您可以在庭園中暢快游水，夜晚觀星暢聊，打造專屬您的隱密池畔派對。</p>
-            <div class="room-amenities">
-              <span class="amenity">私人游泳池</span>
-              <span class="amenity">池畔躺椅</span>
-              <span class="amenity">獨立出入口</span>
-              <span class="amenity">咖啡吧</span>
-            </div>
-            <div class="room-pricing">
-              <div class="price-item">平日房價 <span class="price-val">NT$ 4,000</span></div>
-              <div class="price-item">假日/暑假 <span class="price-val">NT$ 4,800</span></div>
-            </div>
-            <a href="#booking" class="btn-book-room" onclick="selectRoomType('pool_quad')">選擇此房型</a>
-          </div>
-        </div>
-
-        <!-- Charter B&B -->
-        <div class="room-card">
-          <div class="room-img-box">
-            <span class="room-badge">10人包棟</span>
-            <img src="assets/pool_outdoor_2.jpg" alt="10人小包棟" class="room-img">
-          </div>
-          <div class="room-content">
-            <h3 class="room-title">10 人小包棟</h3>
-            <p class="room-desc">家族聚會、同學出遊首選！包下整棟特色貨櫃花園別墅，享受不受打擾的庭園空間，在星空下品嚐炭烤，製造專屬的琉球回憶。</p>
-            <div class="room-amenities">
-              <span class="amenity">整棟獨享</span>
-              <span class="amenity">花園BBQ空間</span>
-              <span class="amenity">共用客廳</span>
-              <span class="amenity">麻將提供</span>
-            </div>
-            <div class="room-pricing">
-              <div class="price-item">平日房價 <span class="price-val">NT$ 8,000</span></div>
-              <div class="price-item">假日房價 <span class="price-val">NT$ 10,000</span></div>
-            </div>
-            <a href="#booking" class="btn-book-room" onclick="selectRoomType('charter')">選擇此房型</a>
-          </div>
-        </div>
+      <div class="rooms-grid" id="roomsGrid">
+        <!-- Loaded dynamically -->
       </div>
     </div>
   </section>
@@ -233,10 +142,7 @@
               <div class="form-group">
                 <label for="roomType">預訂房型 *</label>
                 <select id="roomType" name="roomType" required>
-                  <option value="double">翠竹雙人房</option>
-                  <option value="quad">鄉村 / 自然 / 樸石四人房</option>
-                  <option value="pool_quad">弦木 / 澄花泳池四人房 (私人泳池)</option>
-                  <option value="charter">10人小包棟</option>
+                  <!-- Loaded dynamically -->
                 </select>
               </div>
             </div>
@@ -492,74 +398,38 @@
 
             <!-- Notes -->
             <div class="form-group" style="margin-top: 30px;">
-              <label for="note">備註事項 (選填)</label>
-              <textarea id="note" name="note" rows="3" placeholder="例如：預計抵達船班時間，或特殊床型需求..."></textarea>
-            </div>
-          </form>
+              <label for="n      <div class="gallery-grid" id="galleryGrid">
+        <!-- Loaded dynamically -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Rules & Information Section -->
+  <section id="rules" style="background-color: #f1f6f3; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);">
+    <div class="container">
+      <div class="section-header">
+        <p class="section-subtitle">INFORMATION</p>
+        <h2 class="section-title">住宿規則與訂房需知</h2>
+        <div class="section-divider"></div>
+      </div>
+      <div class="booking-layout" style="grid-template-columns: 1.2fr 1fr; gap: 40px;">
+        <div class="booking-form-box" style="padding: 32px;">
+          <h3 style="margin-bottom: 20px; font-size: 18px; border-left: 4px solid var(--primary-color); padding-left: 10px;">住宿守則</h3>
+          <ul id="rulesList" style="padding-left: 20px; font-size: 15px; color: var(--text-dark); display: flex; flex-direction: column; gap: 12px; list-style-type: decimal;">
+            <!-- Dynamic reminders -->
+          </ul>
         </div>
-
-        <!-- Summary & Submit -->
-        <div class="summary-card">
-          <h3 class="summary-title"><i class="fa-solid fa-receipt"></i> 預估訂單明細</h3>
-          
-          <div class="summary-row">
-            <span>預訂房型：</span>
-            <span id="summaryRoom">翠竹雙人房</span>
+        <div class="summary-card" style="position: static; padding: 32px; height: 100%;">
+          <h3 class="summary-title" style="font-size: 18px; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; margin-bottom: 20px;"><i class="fa-solid fa-money-bill-transfer"></i> 訂房與匯款資訊</h3>
+          <div id="paymentInfoText" style="font-size: 14px; white-space: pre-line; color: var(--text-dark); line-height: 1.8;">
+            <!-- Dynamic payment info -->
           </div>
-          <div class="summary-row">
-            <span>住宿天數：</span>
-            <span id="summaryNights">1 晚</span>
-          </div>
-          <div class="summary-row">
-            <span>住房人數：</span>
-            <span id="summaryPeople">2 大 0 小</span>
-          </div>
-          <div class="summary-row">
-            <span>客房小計：</span>
-            <span id="summaryRoomPrice">NT$ 2,000</span>
-          </div>
-          
-          <!-- Dynamic Packages Summary List -->
-          <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
-            <p style="font-size: 13px; font-weight: 700; margin-bottom: 8px;">加購套裝項目：</p>
-            <ul class="summary-packages-list" id="summaryPackagesList">
-              <li>無加購項目</li>
-            </ul>
-            <div class="summary-row" style="font-weight: 600;">
-              <span>套裝小計：</span>
-              <span id="summaryPackagePrice">NT$ 0</span>
-            </div>
-          </div>
-
-          <div class="summary-row total">
-            <span>預估總金額：</span>
-            <span id="summaryTotal">NT$ 2,000</span>
-          </div>
-
-          <p style="font-size: 12px; color: var(--text-light); margin: 16px 0; text-align: center;">
-            * 此為線上即時報價，送出後將為您保留房間並引導至模擬付款頁面。
-          </p>
-
-          <button type="button" class="btn-primary" id="btnSubmitBooking" style="width: 100%;">確認訂房並前往付款</button>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- Gallery Section -->
-  <section id="gallery">
-    <div class="container">
-      <div class="section-header">
-        <p class="section-subtitle">GALLERY</p>
-        <h2 class="section-title">芭扎寫真與琉球風情</h2>
-        <div class="section-divider"></div>
-      </div>
-
-      <div class="gallery-grid">
-        <div class="gallery-card" onclick="openLightbox('assets/room_interior_1.jpg')">
-          <img src="assets/room_interior_1.jpg" alt="客房內部設計實景">
-          <div class="gallery-overlay">
-            <h4 class="gallery-title">溫馨雙人套房</h4>
+  <!-- Contact Section -->�</h4>
             <p class="gallery-desc">明亮寬敞的床鋪、質感掛燈與木質電視架設計</p>
           </div>
         </div>

@@ -404,3 +404,522 @@ function showPasswordMsg(text, color) {
   passwordMsg.textContent = text;
   passwordMsg.style.color = color;
 }
+
+// ==========================================
+// 12. CMS Content Management Logic
+// ==========================================
+
+let cmsRooms = [];
+let cmsCarousel = [];
+let cmsGallery = [];
+let cmsRules = {};
+let currentCmsSubTab = 'rooms';
+
+// Subtab switching in CMS
+function switchCmsSubTab(subTab) {
+  currentCmsSubTab = subTab;
+  
+  // Update buttons classes
+  ['rooms', 'carousel', 'gallery', 'rules'].forEach(tab => {
+    const btn = document.getElementById(`subtab_${tab}_btn`);
+    const pane = document.getElementById(`cms_subtab_${tab}`);
+    if (tab === subTab) {
+      btn.classList.add('btn-action-primary');
+      pane.style.display = 'block';
+    } else {
+      btn.classList.remove('btn-action-primary');
+      pane.style.display = 'none';
+    }
+  });
+
+  if (subTab === 'rooms') closeRoomEditor();
+}
+
+// Load dynamic config from database
+async function loadCmsData() {
+  if (!adminToken) return;
+
+  try {
+    const res = await fetch('/api/config');
+    const result = await res.json();
+    if (result.success && result.siteConfig) {
+      cmsRooms = result.siteConfig.rooms || [];
+      cmsCarousel = result.siteConfig.carousel || [];
+      cmsGallery = result.siteConfig.gallery || [];
+      cmsRules = result.siteConfig.rules || { checkInTime: '15:00', checkOutTime: '11:00', reminders: [], payment: '' };
+
+      renderCmsRooms();
+      renderCmsCarousel();
+      renderCmsGallery();
+      renderCmsRules();
+    }
+  } catch (err) {
+    console.error('Error loading CMS config:', err);
+  }
+}
+
+// A. Rooms Management
+function renderCmsRooms() {
+  const tbody = document.getElementById('cmsRoomsTableBody');
+  tbody.innerHTML = '';
+
+  if (cmsRooms.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-light);">尚無任何房型配置</td></tr>';
+    return;
+  }
+
+  cmsRooms.forEach(room => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-family:monospace; font-weight:bold;">${room.id}</td>
+      <td><strong>${room.name}</strong></td>
+      <td>NT$ ${room.priceWeekday.toLocaleString()}</td>
+      <td>NT$ ${room.priceHoliday.toLocaleString()}</td>
+      <td>NT$ ${room.priceConsecutive.toLocaleString()}</td>
+      <td>
+        <div class="admin-actions">
+          <button class="btn-action-small" onclick="openRoomEditor('${room.id}')" title="編輯房型"><i class="fa-solid fa-pen-to-square"></i> 編輯</button>
+          <button class="btn-action-small" onclick="deleteRoomConfig('${room.id}')" style="color:#dc2626;" title="刪除房型"><i class="fa-solid fa-trash-can"></i> 刪除</button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function openRoomEditor(roomId = null) {
+  const formBox = document.getElementById('roomEditorFormBox');
+  const titleEl = document.getElementById('roomEditorTitle');
+  const isNewEl = document.getElementById('editRoom_isNew');
+  
+  const idInput = document.getElementById('editRoom_id');
+  const nameInput = document.getElementById('editRoom_name');
+  const weekdayInput = document.getElementById('editRoom_priceWeekday');
+  const holidayInput = document.getElementById('editRoom_priceHoliday');
+  const summerInput = document.getElementById('editRoom_priceSummer');
+  const consecutiveInput = document.getElementById('editRoom_priceConsecutive');
+  const descInput = document.getElementById('editRoom_description');
+  const amenitiesInput = document.getElementById('editRoom_amenities');
+  const imgInput = document.getElementById('editRoom_image');
+  const previewImg = document.getElementById('editRoom_preview');
+
+  // Reset file input
+  document.getElementById('editRoom_file').value = '';
+
+  if (roomId) {
+    // Edit existing room
+    const room = cmsRooms.find(r => r.id === roomId);
+    if (!room) return;
+
+    titleEl.textContent = '編輯特色房型';
+    isNewEl.value = 'false';
+    idInput.value = room.id;
+    idInput.disabled = true; // Cannot edit unique ID once created
+
+    nameInput.value = room.name;
+    weekdayInput.value = room.priceWeekday;
+    holidayInput.value = room.priceHoliday;
+    summerInput.value = room.priceSummer;
+    consecutiveInput.value = room.priceConsecutive;
+    descInput.value = room.description;
+    amenitiesInput.value = room.amenities.join(', ');
+    
+    const imageUrl = room.images && room.images.length > 0 ? room.images[0] : '';
+    imgInput.value = imageUrl;
+    
+    if (imageUrl) {
+      previewImg.src = '../' + imageUrl; // Path correction for preview
+      previewImg.style.display = 'block';
+    } else {
+      previewImg.style.display = 'none';
+    }
+  } else {
+    // Add new room
+    titleEl.textContent = '新增特色房型';
+    isNewEl.value = 'true';
+    idInput.value = '';
+    idInput.disabled = false;
+
+    nameInput.value = '';
+    weekdayInput.value = '2000';
+    holidayInput.value = '2800';
+    summerInput.value = '2800';
+    consecutiveInput.value = '3200';
+    descInput.value = '';
+    amenitiesInput.value = '液晶電視, 冷氣, 獨立陽台';
+    imgInput.value = '';
+    previewImg.style.display = 'none';
+  }
+
+  formBox.style.display = 'block';
+  formBox.scrollIntoView({ behavior: 'smooth' });
+}
+
+function closeRoomEditor() {
+  document.getElementById('roomEditorFormBox').style.display = 'none';
+}
+
+// Upload file to server via Ajax
+async function uploadCmsImage(type) {
+  let fileInput = null;
+  if (type === 'room') fileInput = document.getElementById('editRoom_file');
+  else if (type === 'carousel') fileInput = document.getElementById('carousel_file');
+  else if (type === 'gallery') fileInput = document.getElementById('gallery_file');
+
+  if (!fileInput || fileInput.files.length === 0) {
+    alert('請先選擇一個相片檔案。');
+    return;
+  }
+
+  const file = fileInput.files[0];
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const res = await fetch('/api/admin/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: formData
+    });
+    
+    const result = await res.json();
+    if (result.success) {
+      const url = result.imageUrl;
+      if (type === 'room') {
+        document.getElementById('editRoom_image').value = url;
+        const preview = document.getElementById('editRoom_preview');
+        preview.src = '../' + url;
+        preview.style.display = 'block';
+        alert('相片上傳成功！');
+      } else if (type === 'carousel') {
+        await addCarouselImage(url);
+      } else if (type === 'gallery') {
+        await addGalleryItem(url);
+      }
+    } else {
+      alert(`上傳失敗: ${result.message}`);
+    }
+  } catch (err) {
+    console.error('Error uploading image:', err);
+    alert('圖片上傳錯誤，請確認伺服器連線正常。');
+  }
+}
+
+// Save room config
+async function saveRoomConfig() {
+  const isNew = document.getElementById('editRoom_isNew').value === 'true';
+  const id = document.getElementById('editRoom_id').value.trim();
+  const name = document.getElementById('editRoom_name').value.trim();
+  const priceWeekday = parseInt(document.getElementById('editRoom_priceWeekday').value);
+  const priceHoliday = parseInt(document.getElementById('editRoom_priceHoliday').value);
+  const priceSummer = parseInt(document.getElementById('editRoom_priceSummer').value);
+  const priceConsecutive = parseInt(document.getElementById('editRoom_priceConsecutive').value);
+  const description = document.getElementById('editRoom_description').value.trim();
+  const amenitiesStr = document.getElementById('editRoom_amenities').value;
+  const image = document.getElementById('editRoom_image').value.trim();
+
+  if (!id || !name || isNaN(priceWeekday) || isNaN(priceHoliday) || isNaN(priceSummer) || isNaN(priceConsecutive) || !description || !image) {
+    alert('所有有 * 號的欄位均為必填項目，且房價必須為有效數字！');
+    return;
+  }
+
+  // Parse tags
+  const amenities = amenitiesStr.split(/[,，]/).map(tag => tag.trim()).filter(tag => tag.length > 0);
+
+  const roomData = {
+    id, name, priceWeekday, priceHoliday, priceSummer, priceConsecutive, description,
+    amenities, images: [image]
+  };
+
+  if (isNew) {
+    // Check if ID duplicates
+    if (cmsRooms.some(r => r.id === id)) {
+      alert('房型代碼已存在，請使用不同的代碼。');
+      return;
+    }
+    cmsRooms.push(roomData);
+  } else {
+    const idx = cmsRooms.findIndex(r => r.id === id);
+    if (idx !== -1) {
+      cmsRooms[idx] = roomData;
+    }
+  }
+
+  try {
+    const res = await fetch('/api/admin/config/rooms', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ rooms: cmsRooms })
+    });
+    const result = await res.json();
+    if (result.success) {
+      alert('房型配置儲存成功！');
+      closeRoomEditor();
+      loadCmsData();
+    } else {
+      alert(`儲存失敗: ${result.message}`);
+    }
+  } catch (err) {
+    console.error('Error saving rooms:', err);
+    alert('伺服器連線錯誤。');
+  }
+}
+
+// Delete room
+async function deleteRoomConfig(roomId) {
+  if (!confirm(`確定要刪除房型 ${roomId} 嗎？刪除後前台估價與首頁列表將不再呈現此房型。`)) return;
+
+  const filtered = cmsRooms.filter(r => r.id !== roomId);
+  try {
+    const res = await fetch('/api/admin/config/rooms', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ rooms: filtered })
+    });
+    const result = await res.json();
+    if (result.success) {
+      alert('房型刪除成功。');
+      loadCmsData();
+    }
+  } catch (err) {
+    console.error('Error deleting room config:', err);
+  }
+}
+
+// B. Carousel Management
+function renderCmsCarousel() {
+  const grid = document.getElementById('cmsCarouselGrid');
+  grid.innerHTML = '';
+
+  if (cmsCarousel.length === 0) {
+    grid.innerHTML = '<div style="color:var(--text-light); padding: 20px;">目前尚無首頁輪播圖，首頁將呈現空白。</div>';
+    return;
+  }
+
+  cmsCarousel.forEach((slide, index) => {
+    const div = document.createElement('div');
+    div.className = 'room-card';
+    div.style.padding = '0';
+    div.innerHTML = `
+      <div style="position:relative; width:100%; height:130px; overflow:hidden;">
+        <img src="../${slide.image}" style="width:100%; height:100%; object-fit:cover;">
+        <button onclick="deleteCarouselConfig(${index})" style="position:absolute; top:8px; right:8px; background-color:#dc2626; color:white; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer;" title="刪除此圖"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="padding:12px;">
+        <h5 style="margin:0; font-size:14px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${slide.title || '無標題'}</h5>
+      </div>
+    `;
+    grid.appendChild(div);
+  });
+}
+
+async function addCarouselImage(url) {
+  const title = prompt('請輸入此張圖片的輪播標題 (選填，例如: bazar花園)：') || '';
+  const desc = prompt('請輸入此張圖片的輪播副標題 (選填，例如: 小琉球特色民宿)：') || '';
+  
+  const newItem = {
+    id: 'c-' + Date.now(),
+    image: url,
+    title,
+    desc
+  };
+
+  cmsCarousel.push(newItem);
+
+  try {
+    const res = await fetch('/api/admin/config/carousel', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ carousel: cmsCarousel })
+    });
+    const result = await res.json();
+    if (result.success) {
+      alert('首頁輪播圖上傳且新增成功！');
+      document.getElementById('carousel_file').value = '';
+      loadCmsData();
+    }
+  } catch (err) {
+    console.error('Error adding carousel slide:', err);
+  }
+}
+
+async function deleteCarouselConfig(index) {
+  if (!confirm('確定要刪除這張輪播大圖嗎？')) return;
+
+  cmsCarousel.splice(index, 1);
+
+  try {
+    const res = await fetch('/api/admin/config/carousel', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ carousel: cmsCarousel })
+    });
+    const result = await res.json();
+    if (result.success) {
+      loadCmsData();
+    }
+  } catch (err) {
+    console.error('Error deleting carousel slide:', err);
+  }
+}
+
+// C. Gallery Management
+function renderCmsGallery() {
+  const grid = document.getElementById('cmsGalleryGrid');
+  grid.innerHTML = '';
+
+  if (cmsGallery.length === 0) {
+    grid.innerHTML = '<div style="color:var(--text-light); padding: 20px;">目前圖庫尚無照片。</div>';
+    return;
+  }
+
+  cmsGallery.forEach((item, index) => {
+    const div = document.createElement('div');
+    div.className = 'room-card';
+    div.style.padding = '0';
+    div.innerHTML = `
+      <div style="position:relative; width:100%; height:130px; overflow:hidden;">
+        <img src="../${item.image}" style="width:100%; height:100%; object-fit:cover;">
+        <button onclick="deleteGalleryConfig(dots index dots)" class="btn-delete-gal" style="position:absolute; top:8px; right:8px; background-color:#dc2626; color:white; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer;" title="刪除此圖"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="padding:12px;">
+        <h5 style="margin:0 0 4px 0; font-size:14px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${item.title}</h5>
+        <p style="margin:0; font-size:12px; color:var(--text-light); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${item.desc}</p>
+      </div>
+    `;
+    
+    // Fix delete index interpolation
+    div.querySelector('.btn-delete-gal').onclick = () => deleteGalleryConfig(index);
+    grid.appendChild(div);
+  });
+}
+
+async function addGalleryItem(url) {
+  const title = document.getElementById('gallery_title').value.trim();
+  const desc = document.getElementById('gallery_desc').value.trim();
+
+  if (!title || !desc) {
+    alert('請填寫相片標題與相片描述！');
+    return;
+  }
+
+  const newItem = {
+    id: 'g-' + Date.now(),
+    image: url,
+    title,
+    desc
+  };
+
+  cmsGallery.push(newItem);
+
+  try {
+    const res = await fetch('/api/admin/config/gallery', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ gallery: cmsGallery })
+    });
+    const result = await res.json();
+    if (result.success) {
+      alert('圖庫照片新增成功！');
+      document.getElementById('gallery_title').value = '';
+      document.getElementById('gallery_desc').value = '';
+      document.getElementById('gallery_file').value = '';
+      loadCmsData();
+    }
+  } catch (err) {
+    console.error('Error adding gallery item:', err);
+  }
+}
+
+async function deleteGalleryConfig(index) {
+  if (!confirm('確定要從圖庫中移除這張照片嗎？')) return;
+
+  cmsGallery.splice(index, 1);
+
+  try {
+    const res = await fetch('/api/admin/config/gallery', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ gallery: cmsGallery })
+    });
+    const result = await res.json();
+    if (result.success) {
+      loadCmsData();
+    }
+  } catch (err) {
+    console.error('Error deleting gallery item:', err);
+  }
+}
+
+// D. Rules Management
+function renderCmsRules() {
+  document.getElementById('editRules_checkInTime').value = cmsRules.checkInTime || '15:00';
+  document.getElementById('editRules_checkOutTime').value = cmsRules.checkOutTime || '11:00';
+  
+  const reminders = cmsRules.reminders || [];
+  document.getElementById('editRules_reminders').value = reminders.join('\n');
+  document.getElementById('editRules_payment').value = cmsRules.payment || '';
+}
+
+async function saveRulesConfig() {
+  const checkInTime = document.getElementById('editRules_checkInTime').value.trim();
+  const checkOutTime = document.getElementById('editRules_checkOutTime').value.trim();
+  const remindersText = document.getElementById('editRules_reminders').value;
+  const payment = document.getElementById('editRules_payment').value.trim();
+  const rulesConfigMsg = document.getElementById('rulesConfigMsg');
+
+  // Split reminders text by line break
+  const reminders = remindersText.split('\n').map(r => r.trim()).filter(r => r.length > 0);
+
+  const updatedRules = {
+    checkInTime,
+    checkOutTime,
+    reminders,
+    payment
+  };
+
+  try {
+    const res = await fetch('/api/admin/config/rules', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ rules: updatedRules })
+    });
+    const result = await res.json();
+    if (result.success) {
+      rulesConfigMsg.textContent = '住宿守則與匯款設定儲存成功！';
+      rulesConfigMsg.style.color = '#10b981';
+      setTimeout(() => { rulesConfigMsg.textContent = ''; }, 3000);
+      loadCmsData();
+    } else {
+      rulesConfigMsg.textContent = `儲存失敗: ${result.message}`;
+      rulesConfigMsg.style.color = '#dc2626';
+    }
+  } catch (err) {
+    console.error('Error saving rules config:', err);
+    rulesConfigMsg.textContent = '伺服器連線錯誤。';
+    rulesConfigMsg.style.color = '#dc2626';
+  }
+}

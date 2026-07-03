@@ -69,6 +69,7 @@
         <ul class="admin-sidebar">
           <li class="active" id="tab_bookings_nav"><a href="javascript:switchTab('bookings')"><i class="fa-solid fa-calendar-check"></i> 訂單明細管理</a></li>
           <li id="tab_stats_nav"><a href="javascript:switchTab('stats')"><i class="fa-solid fa-chart-pie"></i> 營運分析統計</a></li>
+          <li id="tab_cms_nav"><a href="javascript:switchTab('cms')"><i class="fa-solid fa-file-pen"></i> 網站內容管理</a></li>
           <li id="tab_settings_nav"><a href="javascript:switchTab('settings')"><i class="fa-solid fa-gears"></i> 後台密碼設定</a></li>
         </ul>
 
@@ -137,6 +138,184 @@
           </div>
 
           <!-- Tab 3: Password Settings -->
+          <!-- Tab 4: Site Content Management (CMS) -->
+          <div id="tab_cms" style="display: none;">
+            <h3 style="font-size: 20px; margin-bottom: 24px;"><i class="fa-solid fa-file-pen"></i> 網站內容動態管理 (CMS)</h3>
+            
+            <!-- Sub tabs within CMS for better UX -->
+            <div style="display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; flex-wrap: wrap;">
+              <button class="btn-action-small btn-action-primary" id="subtab_rooms_btn" onclick="switchCmsSubTab('rooms')">房型與房價管理</button>
+              <button class="btn-action-small" id="subtab_carousel_btn" onclick="switchCmsSubTab('carousel')">首頁輪播圖管理</button>
+              <button class="btn-action-small" id="subtab_gallery_btn" onclick="switchCmsSubTab('gallery')">寫真圖庫管理</button>
+              <button class="btn-action-small" id="subtab_rules_btn" onclick="switchCmsSubTab('rules')">住宿守則與匯款</button>
+            </div>
+
+            <!-- CMS Sub-Tab 1: Rooms Management -->
+            <div id="cms_subtab_rooms">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h4 style="font-size: 16px;"><i class="fa-solid fa-bed"></i> 房型列表</h4>
+                <button class="btn-primary" style="padding: 8px 16px; font-size:13px;" onclick="openRoomEditor()">+ 新增特色房型</button>
+              </div>
+              <div class="admin-table-container">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>房型代碼</th>
+                      <th>房型名稱</th>
+                      <th>平日價</th>
+                      <th>假日/暑假</th>
+                      <th>連續假期</th>
+                      <th>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="cmsRoomsTableBody">
+                    <!-- JS generated -->
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Room Edit Form (hidden by default) -->
+              <div id="roomEditorFormBox" style="display:none; background-color: #f7faf8; border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; margin-top: 30px;">
+                <h4 id="roomEditorTitle" style="font-size: 16px; margin-bottom: 20px; border-left: 4px solid var(--primary-color); padding-left: 8px;">編輯房型</h4>
+                <input type="hidden" id="editRoom_isNew" value="false">
+                
+                <div class="form-group-row">
+                  <div class="form-group">
+                    <label for="editRoom_id">房型代碼 (英文/小寫, 例如: double_new) *</label>
+                    <input type="text" id="editRoom_id" placeholder="作為唯一 ID，不可重複">
+                  </div>
+                  <div class="form-group">
+                    <label for="editRoom_name">房型名稱 (例如: 蔚藍四人房) *</label>
+                    <input type="text" id="editRoom_name" placeholder="顯示在網頁上的名稱">
+                  </div>
+                </div>
+
+                <div class="form-group-row">
+                  <div class="form-group">
+                    <label for="editRoom_priceWeekday">平日房價 (NT$) *</label>
+                    <input type="number" id="editRoom_priceWeekday" min="0">
+                  </div>
+                  <div class="form-group">
+                    <label for="editRoom_priceHoliday">假日 / 暑假房價 (NT$) *</label>
+                    <input type="number" id="editRoom_priceHoliday" min="0">
+                  </div>
+                </div>
+
+                <div class="form-group-row">
+                  <div class="form-group">
+                    <label for="editRoom_priceSummer">暑假平日房價 (NT$) *</label>
+                    <input type="number" id="editRoom_priceSummer" min="0" placeholder="通常同假日房價">
+                  </div>
+                  <div class="form-group">
+                    <label for="editRoom_priceConsecutive">連續假期房價 (NT$) *</label>
+                    <input type="number" id="editRoom_priceConsecutive" min="0">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="editRoom_description">房型介紹說明 *</label>
+                  <textarea id="editRoom_description" rows="3" placeholder="請填寫房型的詳細特色介紹..."></textarea>
+                </div>
+
+                <div class="form-group">
+                  <label for="editRoom_amenities">客房設備備品 (以逗號區隔，例如: 液晶電視, 冷氣, 獨立陽台) *</label>
+                  <input type="text" id="editRoom_amenities" placeholder="以英文或中文逗號區隔">
+                </div>
+
+                <div class="form-group">
+                  <label>客房照片 *</label>
+                  <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 12px;">
+                    <input type="file" id="editRoom_file" accept="image/*">
+                    <button type="button" class="btn-action-small" onclick="uploadCmsImage('room')">上傳相片</button>
+                  </div>
+                  <input type="text" id="editRoom_image" placeholder="上傳後自動填入圖片路徑，或手動填寫" style="background-color:#eef3ef;" readonly>
+                  <div style="margin-top: 10px;">
+                    <img id="editRoom_preview" src="" style="max-height: 120px; border-radius: 8px; display: none;">
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                  <button type="button" class="btn-primary" onclick="saveRoomConfig()">儲存房型</button>
+                  <button type="button" class="btn-secondary" style="border-color:var(--text-light); color:var(--text-light);" onclick="closeRoomEditor()">取消</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- CMS Sub-Tab 2: Carousel Management -->
+            <div id="cms_subtab_carousel" style="display:none;">
+              <div style="margin-bottom: 20px;">
+                <h4 style="font-size: 16px; margin-bottom: 12px;"><i class="fa-solid fa-image"></i> 新增首頁輪播圖</h4>
+                <div style="display: flex; gap: 16px; align-items: center; max-width: 600px;">
+                  <input type="file" id="carousel_file" accept="image/*">
+                  <button type="button" class="btn-primary" onclick="uploadCmsImage('carousel')" style="font-size: 13px; padding: 8px 16px;">上傳並新增</button>
+                </div>
+              </div>
+
+              <h4 style="font-size: 16px; margin-top: 30px; margin-bottom: 16px;">現有輪播圖清單 (最多推薦 4-5 張)</h4>
+              <div class="rooms-grid" id="cmsCarouselGrid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+                <!-- JS generated -->
+              </div>
+            </div>
+
+            <!-- CMS Sub-Tab 3: Gallery Management -->
+            <div id="cms_subtab_gallery" style="display:none;">
+              <div style="background-color: #f7faf8; border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; margin-bottom: 30px;">
+                <h4 style="font-size: 16px; margin-bottom: 16px;"><i class="fa-solid fa-images"></i> 新增相片至寫真圖庫</h4>
+                <div class="form-group-row">
+                  <div class="form-group">
+                    <label for="gallery_title">相片標題 *</label>
+                    <input type="text" id="gallery_title" placeholder="例如：質感乾濕分離衛浴">
+                  </div>
+                  <div class="form-group">
+                    <label for="gallery_desc">相片簡短描述 *</label>
+                    <input type="text" id="gallery_desc" placeholder="例如：明亮舒適的洗手台設計">
+                  </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 16px;">
+                  <label>相片檔案 *</label>
+                  <div style="display: flex; gap: 16px; align-items: center;">
+                    <input type="file" id="gallery_file" accept="image/*">
+                    <button type="button" class="btn-primary" onclick="uploadCmsImage('gallery')" style="font-size: 13px; padding: 8px 16px;">上傳並新增</button>
+                  </div>
+                </div>
+              </div>
+
+              <h4 style="font-size: 16px; margin-bottom: 16px;">現有圖庫相片清單</h4>
+              <div class="rooms-grid" id="cmsGalleryGrid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+                <!-- JS generated -->
+              </div>
+            </div>
+
+            <!-- CMS Sub-Tab 4: Rules Management -->
+            <div id="cms_subtab_rules" style="display:none;">
+              <h4 style="font-size: 16px; margin-bottom: 16px;"><i class="fa-solid fa-circle-info"></i> 住宿須知與訂金匯款編輯</h4>
+              
+              <div class="form-group">
+                <label>退房與入住時間設定</label>
+                <div style="display: flex; gap: 16px; align-items: center; max-width: 400px;">
+                  <span style="font-size: 14px;">入住時間：</span>
+                  <input type="text" id="editRules_checkInTime" style="padding: 8px;" placeholder="例如: 15:00">
+                  <span style="font-size: 14px; margin-left: 10px;">退房時間：</span>
+                  <input type="text" id="editRules_checkOutTime" style="padding: 8px;" placeholder="例如: 11:00">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="editRules_reminders">住宿守則條款 (每行一條)</label>
+                <textarea id="editRules_reminders" rows="6" placeholder="請輸入住宿規則，每行代表一條..."></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="editRules_payment">訂金匯款資料與訂房需知說明 (支援換行)</label>
+                <textarea id="editRules_payment" rows="8" placeholder="請輸入銀行匯款資訊與訂金付款天數等說明..."></textarea>
+              </div>
+
+              <button class="btn-primary" style="margin-top: 10px;" onclick="saveRulesConfig()">儲存守則與匯款設定</button>
+              <p id="rulesConfigMsg" style="margin-top: 16px; font-size: 14px; font-weight: 600;"></p>
+            </div>
+
+          </div>
+
           <div id="tab_settings" style="display: none;">
             <h3 style="font-size: 20px; margin-bottom: 24px;"><i class="fa-solid fa-lock"></i> 密碼設定管理</h3>
             

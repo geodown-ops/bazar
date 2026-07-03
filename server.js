@@ -1,10 +1,30 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DB_PATH = path.join(__dirname, 'db.json');
+
+// Configure Multer for local uploads
+const UPLOADS_DIR = path.join(__dirname, 'public', 'assets', 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, 'upload-' + uniqueSuffix + ext);
+  }
+});
+
+const upload = multer({ storage: storage });
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -58,27 +78,24 @@ function calculatePrice(bookingData) {
   const diffTime = outDate - inDate;
   const nights = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 
-  // Room pricing rules
-  // double: 翠竹雙人房
-  // quad: 鄉村/自然/樸石四人房
-  // pool_quad: 弦木/澄花四人房 (私人泳池)
-  // charter: 10人小包棟
-  const roomRates = {
-    double: { weekday: 2000, summer: 2800, holiday: 2800, consecutive: 3200 },
-    quad: { weekday: 3000, summer: 3800, holiday: 3800, consecutive: 4800 },
-    pool_quad: { weekday: 4000, summer: 4800, holiday: 4800, consecutive: 5600 },
-    charter: { weekday: 8000, summer: 10000, holiday: 10000, consecutive: 12000 }
-  };
-
   let roomPrice = 0;
   let currentDate = new Date(inDate);
+
+  // Room pricing rules (dynamically fetched from siteConfig.rooms in db.json)
+  const dbData = readDb();
+  const roomsConfig = dbData.siteConfig ? dbData.siteConfig.rooms : [];
+  const roomConf = roomsConfig.find(r => r.id === roomType);
+  const rates = roomConf ? {
+    weekday: roomConf.priceWeekday,
+    summer: roomConf.priceSummer,
+    holiday: roomConf.priceHoliday,
+    consecutive: roomConf.priceConsecutive
+  } : { weekday: 2000, summer: 2800, holiday: 2800, consecutive: 3200 };
 
   for (let i = 0; i < nights; i++) {
     const dayOfWeek = currentDate.getDay(); // 0: Sun, 1: Mon, ... 6: Sat
     const isWeekend = (dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0); // Friday, Saturday, Sunday
     
-    const rates = roomRates[roomType] || roomRates.double;
-
     if (isHolidayPackage) {
       roomPrice += rates.consecutive;
     } else if (isSummer) {
@@ -403,6 +420,83 @@ app.put('/api/admin/settings/password', requireAdmin, (req, res) => {
   db.settings.adminPassword = newPassword;
   writeDb(db);
   res.json({ success: true, message: '管理密碼修改成功！' });
+});
+
+// 10. Front-end API - Get Site Configuration
+app.get('/api/config', (req, res) => {
+  const db = readDb();
+  res.json({ success: true, siteConfig: db.siteConfig || {} });
+});
+
+// 11. Admin API - Upload Image
+app.post('/api/admin/upload', requireAdmin, upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: '沒有上傳檔案或格式不符。' });
+  }
+  
+  // Return relative URL path
+  const imageUrl = `assets/uploads/${req.file.filename}`;
+  res.json({ success: true, imageUrl });
+});
+
+// 12. Admin API - Update Rooms Config
+app.put('/api/admin/config/rooms', requireAdmin, (req, res) => {
+  const { rooms } = req.body;
+  if (!Array.isArray(rooms)) {
+    return res.status(400).json({ success: false, message: '房型資料結構不正確。' });
+  }
+
+  const db = readDb();
+  db.siteConfig = db.siteConfig || {};
+  db.siteConfig.rooms = rooms;
+  writeDb(db);
+
+  res.json({ success: true, message: '房型配置更新成功。' });
+});
+
+// 13. Admin API - Update Carousel Config
+app.put('/api/admin/config/carousel', requireAdmin, (req, res) => {
+  const { carousel } = req.body;
+  if (!Array.isArray(carousel)) {
+    return res.status(400).json({ success: false, message: '輪播資料結構不正確。' });
+  }
+
+  const db = readDb();
+  db.siteConfig = db.siteConfig || {};
+  db.siteConfig.carousel = carousel;
+  writeDb(db);
+
+  res.json({ success: true, message: '首頁輪播圖更新成功。' });
+});
+
+// 14. Admin API - Update Gallery Config
+app.put('/api/admin/config/gallery', requireAdmin, (req, res) => {
+  const { gallery } = req.body;
+  if (!Array.isArray(gallery)) {
+    return res.status(400).json({ success: false, message: '圖庫資料結構不正確。' });
+  }
+
+  const db = readDb();
+  db.siteConfig = db.siteConfig || {};
+  db.siteConfig.gallery = gallery;
+  writeDb(db);
+
+  res.json({ success: true, message: '寫真圖庫更新成功。' });
+});
+
+// 15. Admin API - Update Rules Config
+app.put('/api/admin/config/rules', requireAdmin, (req, res) => {
+  const { rules } = req.body;
+  if (!rules || typeof rules !== 'object') {
+    return res.status(400).json({ success: false, message: '規則資料結構不正確。' });
+  }
+
+  const db = readDb();
+  db.siteConfig = db.siteConfig || {};
+  db.siteConfig.rules = rules;
+  writeDb(db);
+
+  res.json({ success: true, message: '住宿規則與匯款資訊更新成功。' });
 });
 
 // Fallback: Route /bzzar/* requests to index.html (SPA feel)
