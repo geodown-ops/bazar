@@ -27,6 +27,7 @@ function showDashboard() {
   adminLoginOverlay.style.display = 'none';
   adminDashboard.style.display = 'block';
   loadDashboardData();
+  loadCmsData();
 }
 
 // 1. Admin Login
@@ -85,10 +86,14 @@ function switchTab(tabName) {
   // Show/Hide tab content
   document.getElementById('tab_bookings').style.display = tabName === 'bookings' ? 'block' : 'none';
   document.getElementById('tab_stats').style.display = tabName === 'stats' ? 'block' : 'none';
+  document.getElementById('tab_cms').style.display = tabName === 'cms' ? 'block' : 'none';
   document.getElementById('tab_settings').style.display = tabName === 'settings' ? 'block' : 'none';
 
   if (tabName === 'stats') {
     renderStatsCharts();
+  } else if (tabName === 'cms') {
+    loadCmsData();
+    switchCmsSubTab(currentCmsSubTab || 'rooms');
   }
 }
 
