@@ -794,7 +794,7 @@ function renderCmsGallery() {
     div.innerHTML = `
       <div style="position:relative; width:100%; height:130px; overflow:hidden;">
         <img src="../${item.image}" style="width:100%; height:100%; object-fit:cover;">
-        <button onclick="deleteGalleryConfig(dots index dots)" class="btn-delete-gal" style="position:absolute; top:8px; right:8px; background-color:#dc2626; color:white; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer;" title="刪除此圖"><i class="fa-solid fa-xmark"></i></button>
+        <button onclick="deleteGalleryConfig(${index})" class="btn-delete-gal" style="position:absolute; top:8px; right:8px; background-color:#dc2626; color:white; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer;" title="刪除此圖"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div style="padding:12px;">
         <h5 style="margin:0 0 4px 0; font-size:14px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${item.title}</h5>
