@@ -246,19 +246,32 @@
 
             <!-- CMS Sub-Tab 2: Carousel Management -->
             <div id="cms_subtab_carousel" style="display:none;">
-              <div style="margin-bottom: 20px;">
-                <h4 style="font-size: 16px; margin-bottom: 12px;"><i class="fa-solid fa-image"></i> 新增首頁輪播圖</h4>
-                <div style="display: flex; gap: 16px; align-items: center; max-width: 600px;">
-                  <input type="file" id="carousel_file" accept="image/*">
-                  <button type="button" class="btn-primary" onclick="uploadCmsImage('carousel')" style="font-size: 13px; padding: 8px 16px;">上傳並新增</button>
+              <div style="background-color: #f7faf8; border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; margin-bottom: 30px;">
+                <h4 style="font-size: 16px; margin-bottom: 16px;"><i class="fa-solid fa-image"></i> 上傳並新增首頁輪播大圖</h4>
+                <div class="form-group-row">
+                  <div class="form-group">
+                    <label for="carousel_title">輪播主標題 (選填)</label>
+                    <input type="text" id="carousel_title" placeholder="例如：bazar花園">
+                  </div>
+                  <div class="form-group">
+                    <label for="carousel_desc">輪播副標題 (選填)</label>
+                    <input type="text" id="carousel_desc" placeholder="例如：小琉球環保貨櫃庭園民宿">
+                  </div>
                 </div>
-                <div id="carousel_preview_box" style="margin-top: 14px; padding: 12px; background: #ffffff; border: 1px dashed var(--border-color); border-radius: 8px; display: none;">
-                  <p style="font-size: 12px; color: var(--text-light); margin-bottom: 6px; font-weight: 600;">📷 即將上傳的照片預覽：</p>
-                  <img id="carousel_preview" src="" style="max-height: 140px; border-radius: 6px; border: 1px solid var(--border-color);">
+                <div class="form-group" style="margin-bottom: 16px;">
+                  <label>輪播圖片檔案 (可選單張或多張照片) *</label>
+                  <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+                    <input type="file" id="carousel_file" accept="image/*" multiple>
+                    <button type="button" class="btn-primary" onclick="uploadAndAddCarousel()" style="font-size: 13px; padding: 8px 20px;">上傳並新增至首頁輪播</button>
+                  </div>
+                  <div id="carousel_preview_box" style="margin-top: 14px; padding: 12px; background: #ffffff; border: 1px dashed var(--border-color); border-radius: 8px; display: none;">
+                    <p style="font-size: 12px; color: var(--text-light); margin-bottom: 6px; font-weight: 600;">📷 即將上傳的照片預覽：</p>
+                    <img id="carousel_preview" src="" style="max-height: 140px; border-radius: 6px; border: 1px solid var(--border-color);">
+                  </div>
                 </div>
               </div>
 
-              <h4 style="font-size: 16px; margin-top: 30px; margin-bottom: 16px;">現有輪播圖清單 (最多推薦 4-5 張)</h4>
+              <h4 style="font-size: 16px; margin-bottom: 16px;">現有首頁輪播圖清單 (推薦 3~5 張)</h4>
               <div class="rooms-grid" id="cmsCarouselGrid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
                 <!-- JS generated -->
               </div>
@@ -349,6 +362,6 @@
     </div>
   </div>
 
-  <script src="js/admin.js?v=5"></script>
+  <script src="js/admin.js?v=6"></script>
 </body>
 </html>

@@ -1016,3 +1016,71 @@ document.addEventListener('DOMContentLoaded', setupImagePreviewListeners);
 if (document.readyState !== 'loading') {
   setupImagePreviewListeners();
 }
+
+// Directly upload and add images to homepage Carousel
+async function uploadAndAddCarousel() {
+  const fileInput = document.getElementById('carousel_file');
+  const titleInput = document.getElementById('carousel_title');
+  const descInput = document.getElementById('carousel_desc');
+
+  if (!fileInput || fileInput.files.length === 0) {
+    alert('請先選擇至少一張圖片檔案！');
+    return;
+  }
+
+  const formData = new FormData();
+  for (let i = 0; i < fileInput.files.length; i++) {
+    formData.append('images', fileInput.files[i]);
+  }
+
+  try {
+    const res = await fetch('/api/admin/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`
+      },
+      body: formData
+    });
+    
+    const result = await res.json();
+    if (result.success) {
+      const urls = result.imageUrls || [result.imageUrl];
+      const title = titleInput ? titleInput.value.trim() : '';
+      const desc = descInput ? descInput.value.trim() : '';
+
+      urls.forEach(url => {
+        cmsCarousel.push({
+          id: 'c-' + Date.now() + '-' + Math.round(Math.random() * 1000),
+          image: url,
+          title: title || 'bazar花園',
+          desc: desc || '小琉球特色民宿'
+        });
+      });
+
+      // Save to database
+      const saveRes = await fetch('/api/admin/config/carousel', {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ carousel: cmsCarousel })
+      });
+      const saveResult = await saveRes.json();
+      if (saveResult.success) {
+        alert(`成功上傳並新增 ${urls.length} 張首頁大圖！`);
+        fileInput.value = '';
+        if (titleInput) titleInput.value = '';
+        if (descInput) descInput.value = '';
+        const previewBox = document.getElementById('carousel_preview_box');
+        if (previewBox) previewBox.style.display = 'none';
+        loadCmsData();
+      }
+    } else {
+      alert(`上傳失敗: ${result.message}`);
+    }
+  } catch (err) {
+    console.error('Error uploading carousel image:', err);
+    alert('圖片上傳錯誤，請確認伺服器連線正常。');
+  }
+}
