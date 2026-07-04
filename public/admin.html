@@ -223,15 +223,17 @@
                 </div>
 
                 <div class="form-group">
-                  <label>客房照片 *</label>
-                  <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 12px;">
-                    <input type="file" id="editRoom_file" accept="image/*">
-                    <button type="button" class="btn-action-small" onclick="uploadCmsImage('room')">上傳相片</button>
+                  <label>客房相片圖庫 (可上傳多張照片，自動建立輪播) *</label>
+                  <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 12px; flex-wrap: wrap;">
+                    <input type="file" id="editRoom_file" accept="image/*" multiple>
+                    <button type="button" class="btn-primary" onclick="uploadCmsImage('room')" style="font-size: 13px; padding: 6px 16px;">上傳所選相片</button>
                   </div>
-                  <input type="text" id="editRoom_image" placeholder="上傳後自動填入圖片路徑，或手動填寫" style="background-color:#eef3ef;" readonly>
-                  <div id="editRoom_preview_box" style="margin-top: 12px; padding: 16px; background: #ffffff; border: 1px dashed var(--border-color); border-radius: 8px; text-align: center;">
-                    <p style="font-size: 13px; color: var(--text-light); margin-bottom: 8px; font-weight: 600;">📷 客房相片預覽：</p>
-                    <img id="editRoom_preview" src="" style="max-height: 200px; max-width: 100%; border-radius: 8px; object-fit: cover; display: none; border: 1px solid var(--border-color);">
+                  
+                  <div id="editRoom_images_container" style="margin-top: 12px; padding: 16px; background: #ffffff; border: 1px dashed var(--border-color); border-radius: 8px;">
+                    <p style="font-size: 13px; color: var(--text-light); margin-bottom: 10px; font-weight: 600;">📷 目前客房相片列表 (前台將呈現輪播及燈箱)：</p>
+                    <div id="editRoom_images_grid" style="display: flex; flex-wrap: wrap; gap: 12px;">
+                      <!-- JS generated thumbnails -->
+                    </div>
                   </div>
                 </div>
 
@@ -347,6 +349,6 @@
     </div>
   </div>
 
-  <script src="js/admin.js?v=4"></script>
+  <script src="js/admin.js?v=5"></script>
 </body>
 </html>

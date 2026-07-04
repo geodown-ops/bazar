@@ -214,14 +214,58 @@ function setupSliderLoop() {
 }
 
 // Render Room List & Rates setup
+let roomImagesMap = {};
+let roomSlideIndexMap = {};
+
+function changeRoomSlide(roomId, dir, event) {
+  if (event) event.stopPropagation();
+  const images = roomImagesMap[roomId] || [];
+  if (images.length <= 1) return;
+
+  let currentIndex = roomSlideIndexMap[roomId] || 0;
+  currentIndex = (currentIndex + dir + images.length) % images.length;
+  roomSlideIndexMap[roomId] = currentIndex;
+
+  updateRoomSliderDOM(roomId);
+}
+
+function setRoomSlide(roomId, index, event) {
+  if (event) event.stopPropagation();
+  roomSlideIndexMap[roomId] = index;
+  updateRoomSliderDOM(roomId);
+}
+
+function updateRoomSliderDOM(roomId) {
+  const currentIndex = roomSlideIndexMap[roomId] || 0;
+  const track = document.getElementById(`room_track_${roomId}`);
+  const dotsBox = document.getElementById(`room_dots_${roomId}`);
+
+  if (track) {
+    const imgs = track.querySelectorAll('.room-img');
+    imgs.forEach((img, i) => {
+      if (i === currentIndex) img.classList.add('active');
+      else img.classList.remove('active');
+    });
+  }
+
+  if (dotsBox) {
+    const dots = dotsBox.querySelectorAll('.dot');
+    dots.forEach((dot, i) => {
+      if (i === currentIndex) dot.classList.add('active');
+      else dot.classList.remove('active');
+    });
+  }
+}
+
 function renderRooms(rooms) {
   const roomsGrid = document.getElementById('roomsGrid');
   roomsGrid.innerHTML = '';
   roomTypeSelect.innerHTML = '';
-  roomRates = {}; // Clear rates config
+  roomRates = {};
+  roomImagesMap = {};
+  roomSlideIndexMap = {};
 
   rooms.forEach(room => {
-    // Populate local roomRates object for client side budget calculations
     roomRates[room.id] = {
       weekday: room.priceWeekday,
       summer: room.priceSummer,
@@ -230,28 +274,43 @@ function renderRooms(rooms) {
       name: room.name
     };
 
-    // Populate roomType select dropdown
     const opt = document.createElement('option');
     opt.value = room.id;
     opt.textContent = room.name;
     roomTypeSelect.appendChild(opt);
 
-    // Build card
+    const images = room.images && room.images.length > 0 ? room.images : ['assets/room_double.jpg'];
+    roomImagesMap[room.id] = images;
+    roomSlideIndexMap[room.id] = 0;
+
     const card = document.createElement('div');
     card.className = 'room-card';
     
-    const firstImg = room.images && room.images.length > 0 ? room.images[0] : 'assets/room_double.jpg';
     const amenitiesHtml = room.amenities.map(a => `<span class="amenity">${a}</span>`).join('');
     
-    // Guess capacity for badge
     let capacityText = '2';
     if (room.name.includes('四人') || room.id.includes('quad')) capacityText = '4';
     else if (room.name.includes('包棟') || room.id.includes('charter')) capacityText = '10';
 
+    const slidesHtml = images.map((imgUrl, i) => `
+      <img src="${imgUrl}" alt="${room.name}" class="room-img ${i === 0 ? 'active' : ''}" onclick="openLightbox('${imgUrl}')" style="cursor: pointer;" title="點擊放大觀看原圖">
+    `).join('');
+
+    const hasMultiple = images.length > 1;
+
     card.innerHTML = `
-      <div class="room-img-box">
+      <div class="room-img-box room-carousel-box" id="room_slider_${room.id}">
         <span class="room-badge">${capacityText} 人房</span>
-        <img src="${firstImg}" alt="${room.name}" class="room-img">
+        <div class="room-slides-track" id="room_track_${room.id}">
+          ${slidesHtml}
+        </div>
+        ${hasMultiple ? `
+          <button type="button" class="room-slider-btn prev" onclick="changeRoomSlide('${room.id}', -1, event)"><i class="fa-solid fa-chevron-left"></i></button>
+          <button type="button" class="room-slider-btn next" onclick="changeRoomSlide('${room.id}', 1, event)"><i class="fa-solid fa-chevron-right"></i></button>
+          <div class="room-slider-dots" id="room_dots_${room.id}">
+            ${images.map((_, i) => `<span class="dot ${i === 0 ? 'active' : ''}" onclick="setRoomSlide('${room.id}', ${i}, event)"></span>`).join('')}
+          </div>
+        ` : ''}
       </div>
       <div class="room-content">
         <h3 class="room-title">${room.name}</h3>

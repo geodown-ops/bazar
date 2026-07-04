@@ -500,6 +500,33 @@ function renderCmsRooms() {
   });
 }
 
+let currentEditingRoomImages = [];
+
+function renderRoomImagesGrid() {
+  const grid = document.getElementById('editRoom_images_grid');
+  grid.innerHTML = '';
+  
+  if (currentEditingRoomImages.length === 0) {
+    grid.innerHTML = '<p style="font-size: 12px; color: var(--text-light);">尚未加入任何照片，請點擊上方按鈕選擇並上傳照片。</p>';
+    return;
+  }
+
+  currentEditingRoomImages.forEach((url, idx) => {
+    const card = document.createElement('div');
+    card.style.cssText = 'position: relative; width: 100px; height: 80px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border-color);';
+    card.innerHTML = `
+      <img src="${getImgSrc(url)}" style="width: 100%; height: 100%; object-fit: cover;">
+      <button type="button" onclick="removeRoomImage(${idx})" style="position: absolute; top: 4px; right: 4px; background: #dc2626; color: #fff; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 10px;" title="刪除此照片"><i class="fa-solid fa-xmark"></i></button>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function removeRoomImage(idx) {
+  currentEditingRoomImages.splice(idx, 1);
+  renderRoomImagesGrid();
+}
+
 function openRoomEditor(roomId = null) {
   const formBox = document.getElementById('roomEditorFormBox');
   const titleEl = document.getElementById('roomEditorTitle');
@@ -537,7 +564,7 @@ function openRoomEditor(roomId = null) {
     descInput.value = room.description;
     amenitiesInput.value = room.amenities.join(', ');
     
-    const imageUrl = room.images && room.images.length > 0 ? room.images[0] : '';
+    currentEditingRoomImages = [...(room.images || [])]; renderRoomImagesGrid();
     imgInput.value = imageUrl;
     
     if (imageUrl) {
@@ -560,8 +587,7 @@ function openRoomEditor(roomId = null) {
     consecutiveInput.value = '3200';
     descInput.value = '';
     amenitiesInput.value = '液晶電視, 冷氣, 獨立陽台';
-    imgInput.value = '';
-    previewImg.style.display = 'none';
+    currentEditingRoomImages = []; renderRoomImagesGrid();
   }
 
   formBox.style.display = 'block';
@@ -601,11 +627,11 @@ async function uploadCmsImage(type) {
     if (result.success) {
       const url = result.imageUrl;
       if (type === 'room') {
-        document.getElementById('editRoom_image').value = url;
-        const preview = document.getElementById('editRoom_preview');
-        preview.src = getImgSrc(url);
-        preview.style.display = 'block';
-        alert('相片上傳成功！');
+        const urls = result.imageUrls || [result.imageUrl];
+        urls.forEach(u => currentEditingRoomImages.push(u));
+        renderRoomImagesGrid();
+        fileInput.value = '';
+        alert(`成功上傳 ${urls.length} 張相片！`);
       } else if (type === 'carousel') {
         const cBox = document.getElementById('carousel_preview_box');
         if (cBox) cBox.style.display = 'none';
@@ -635,19 +661,21 @@ async function saveRoomConfig() {
   const priceConsecutive = parseInt(document.getElementById('editRoom_priceConsecutive').value);
   const description = document.getElementById('editRoom_description').value.trim();
   const amenitiesStr = document.getElementById('editRoom_amenities').value;
-  const image = document.getElementById('editRoom_image').value.trim();
-
-  if (!id || !name || isNaN(priceWeekday) || isNaN(priceHoliday) || isNaN(priceSummer) || isNaN(priceConsecutive) || !description || !image) {
+  if (!id || !name || isNaN(priceWeekday) || isNaN(priceHoliday) || isNaN(priceSummer) || isNaN(priceConsecutive) || !description) {
     alert('所有有 * 號的欄位均為必填項目，且房價必須為有效數字！');
     return;
   }
 
-  // Parse tags
+  if (currentEditingRoomImages.length === 0) {
+    alert('請至少為客房上傳一張照片！');
+    return;
+  }
+
   const amenities = amenitiesStr.split(/[,，]/).map(tag => tag.trim()).filter(tag => tag.length > 0);
 
   const roomData = {
     id, name, priceWeekday, priceHoliday, priceSummer, priceConsecutive, description,
-    amenities, images: [image]
+    amenities, images: currentEditingRoomImages
   };
 
   if (isNew) {

@@ -436,15 +436,18 @@ app.get('/api/config', (req, res) => {
   res.json({ success: true, siteConfig: db.siteConfig || {} });
 });
 
-// 11. Admin API - Upload Image
-app.post('/api/admin/upload', requireAdmin, upload.single('image'), (req, res) => {
-  if (!req.file) {
+// 11. Admin API - Upload Image (Single or Multiple)
+app.post('/api/admin/upload', requireAdmin, upload.any(), (req, res) => {
+  if (!req.files || req.files.length === 0) {
     return res.status(400).json({ success: false, message: '沒有上傳檔案或格式不符。' });
   }
   
-  // Return relative URL path
-  const imageUrl = `assets/uploads/${req.file.filename}`;
-  res.json({ success: true, imageUrl });
+  const imageUrls = req.files.map(f => `assets/uploads/${f.filename}`);
+  res.json({ 
+    success: true, 
+    imageUrls: imageUrls, 
+    imageUrl: imageUrls[0] 
+  });
 });
 
 // 12. Admin API - Update Rooms Config
