@@ -11,81 +11,6 @@
   <link rel="stylesheet" href="css/style.css">
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-  <style>
-    .room-carousel-box {
-      position: relative;
-      overflow: hidden;
-      border-radius: 12px 12px 0 0;
-    }
-    .room-slides-track {
-      width: 100%;
-      height: 220px;
-      position: relative;
-      background: #111;
-    }
-    .room-slides-track .room-img {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      opacity: 0;
-      transition: opacity 0.4s ease-in-out;
-      pointer-events: none;
-    }
-    .room-slides-track .room-img.active {
-      opacity: 1;
-      pointer-events: auto;
-    }
-    .room-slider-btn {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      background: rgba(0, 0, 0, 0.45);
-      color: #ffffff;
-      border: none;
-      border-radius: 50%;
-      width: 34px;
-      height: 34px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      z-index: 10;
-    }
-    .room-slider-btn:hover {
-      background: var(--primary-color);
-      transform: translateY(-50%) scale(1.1);
-    }
-    .room-slider-btn.prev { left: 10px; }
-    .room-slider-btn.next { right: 10px; }
-
-    .room-slider-dots {
-      position: absolute;
-      bottom: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      gap: 6px;
-      z-index: 10;
-    }
-    .room-slider-dots .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.6);
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    .room-slider-dots .dot.active {
-      background: #ffffff;
-      width: 18px;
-      border-radius: 4px;
-    }
-  </style>
 </head>
 <body>
 
@@ -652,6 +577,6 @@
   </div>
 
   <!-- JavaScript -->
-  <script src="js/app.js?v=4"></script>
+  <script src="js/app.js?v=5"></script>
 </body>
 </html>
