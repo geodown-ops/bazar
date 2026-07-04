@@ -7,6 +7,21 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DB_PATH = path.join(__dirname, 'db.json');
 
+// TapPay payment gateway (Direct Pay / Pay by Prime)
+// Defaults below are TapPay's public sandbox demo keys — they only work with
+// test cards. Set the real keys from your TapPay Portal via environment
+// variables (TAPPAY_ENV=production TAPPAY_APP_ID=... etc.) before going live.
+const TAPPAY = {
+  env: process.env.TAPPAY_ENV === 'production' ? 'production' : 'sandbox',
+  appId: parseInt(process.env.TAPPAY_APP_ID, 10) || 11327,
+  appKey: process.env.TAPPAY_APP_KEY || 'app_whdEWBH8e8Lzy4N6BysVRRMILYORF6UxXbiOFsICkz0J9j1C0JUlCHv1tVJC',
+  partnerKey: process.env.TAPPAY_PARTNER_KEY || 'partner_6ID1DoDlaPrfHw6HBZsULfTYtDmWs0q0ZZGKMBpp4YICWBxgK97eK3RM',
+  merchantId: process.env.TAPPAY_MERCHANT_ID || 'GlobalTesting_CTBC'
+};
+const TAPPAY_API_URL = TAPPAY.env === 'production'
+  ? 'https://prod.tappaysdk.com/tpc/payment/pay-by-prime'
+  : 'https://sandbox.tappaysdk.com/tpc/payment/pay-by-prime';
+
 // Configure Multer for local uploads
 const UPLOADS_DIR = path.join(__dirname, 'public', 'assets', 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -288,27 +303,85 @@ app.get('/api/bookings/:id', (req, res) => {
   res.json({ success: true, booking });
 });
 
-// 3. Mock Payment Notify (Simulates webhook callback from ECPay / Line Pay)
-app.post('/api/payment/simulate', (req, res) => {
-  const { bookingId } = req.body;
-  if (!bookingId) {
-    return res.status(400).json({ success: false, message: '缺少訂單編號。' });
+// 3. Payment - TapPay SDK config for the frontend (app key is a public client key)
+app.get('/api/payment/config', (req, res) => {
+  res.json({ success: true, appId: TAPPAY.appId, appKey: TAPPAY.appKey, env: TAPPAY.env });
+});
+
+// 3-1. Payment - TapPay Pay by Prime (real charge; replaces the old mock endpoint)
+app.post('/api/payment/pay', async (req, res) => {
+  const { bookingId, prime } = req.body;
+  if (!bookingId || !prime) {
+    return res.status(400).json({ success: false, message: '缺少訂單編號或交易憑證。' });
   }
 
   const db = readDb();
-  const index = db.bookings.findIndex(b => b.id === bookingId);
-  if (index === -1) {
+  const booking = db.bookings.find(b => b.id === bookingId);
+  if (!booking) {
     return res.status(404).json({ success: false, message: '找不到訂單。' });
   }
+  if (booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Completed') {
+    return res.status(400).json({ success: false, message: '此訂單已完成付款，請勿重複扣款。' });
+  }
+  if (booking.paymentStatus === 'Cancelled') {
+    return res.status(400).json({ success: false, message: '此訂單已取消，無法付款。' });
+  }
 
-  db.bookings[index].paymentStatus = 'Paid';
-  writeDb(db);
+  try {
+    const tpRes = await fetch(TAPPAY_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': TAPPAY.partnerKey
+      },
+      body: JSON.stringify({
+        prime,
+        partner_key: TAPPAY.partnerKey,
+        merchant_id: TAPPAY.merchantId,
+        amount: booking.totalPrice, // TWD: no x100 conversion needed
+        currency: 'TWD',
+        order_number: booking.id,
+        details: `芭扎民宿訂房 ${booking.checkIn}~${booking.checkOut}`.slice(0, 100),
+        cardholder: {
+          phone_number: booking.phone,
+          name: booking.name,
+          email: booking.email || 'guest@bazar.idv.tw'
+        },
+        remember: false
+      })
+    });
+    const tpResult = await tpRes.json();
 
-  res.json({
-    success: true,
-    message: '模擬金流扣款成功！訂單已更新為「已付款」',
-    booking: db.bookings[index]
-  });
+    if (tpResult.status !== 0) {
+      console.error('TapPay payment failed:', tpResult.status, tpResult.msg);
+      return res.status(402).json({
+        success: false,
+        message: `付款失敗：${tpResult.msg || '銀行拒絕交易'} (代碼 ${tpResult.status})`
+      });
+    }
+
+    // Charge succeeded — persist the payment record
+    const fresh = readDb();
+    const index = fresh.bookings.findIndex(b => b.id === bookingId);
+    if (index !== -1) {
+      fresh.bookings[index].paymentStatus = 'Paid';
+      fresh.bookings[index].payment = {
+        gateway: 'TapPay',
+        env: TAPPAY.env,
+        recTradeId: tpResult.rec_trade_id,
+        bankTransactionId: tpResult.bank_transaction_id,
+        cardLastFour: tpResult.card_info ? tpResult.card_info.last_four : '',
+        paidAt: new Date().toISOString()
+      };
+      writeDb(fresh);
+      return res.json({ success: true, message: '付款成功！', booking: fresh.bookings[index] });
+    }
+
+    res.json({ success: true, message: '付款成功！' });
+  } catch (err) {
+    console.error('TapPay request error:', err);
+    res.status(502).json({ success: false, message: '金流服務連線失敗，請稍後再試。' });
+  }
 });
 
 // 4. Admin API - Login

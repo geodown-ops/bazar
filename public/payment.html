@@ -16,7 +16,41 @@
       color: #10b981;
       margin-bottom: 20px;
     }
+
+    /* TapPay Fields — the SDK injects a secure iframe into each .tpfield box */
+    .tpfield {
+      height: 44px;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: #ffffff;
+    }
+
+    .tp-form label {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--text-dark);
+    }
+
+    .sandbox-hint {
+      background: #fff7ed;
+      border: 1px solid #fed7aa;
+      color: #9a3412;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    .btn-pay-now:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
   </style>
+  <script src="https://js.tappaysdk.com/sdk/tpdirect/v5.24.0"></script>
 </head>
 <body style="background-color: #f1f6f3;">
 
@@ -77,12 +111,34 @@
         </div>
 
         <div id="unpaidSection">
-          <h4 style="margin-bottom: 16px; font-size: 15px; text-align: left;"><i class="fa-solid fa-credit-card"></i> 選擇金流通道：</h4>
-          <div class="gateway-logos">
-            <button class="gateway-btn active" id="btn_ecpay"><i class="fa-solid fa-shield-halved"></i> 綠界金流 (ECPay)</button>
-            <button class="gateway-btn" id="btn_linepay"><i class="fa-brands fa-line" style="color: #06c755;"></i> LINE Pay</button>
+          <h4 style="margin-bottom: 16px; font-size: 15px; text-align: left;"><i class="fa-solid fa-credit-card"></i> 信用卡線上付款</h4>
+
+          <div class="sandbox-hint" id="sandboxHint" style="display: none;">
+            <i class="fa-solid fa-flask"></i> <strong>測試環境</strong>：請使用測試卡號 <strong>4242 4242 4242 4242</strong>，有效期填任一未來月/年，安全碼 <strong>123</strong>。不會產生真實扣款。
           </div>
-          <button class="btn-pay-now" id="btnPay">模擬金流支付</button>
+
+          <div class="tp-form" style="text-align: left; margin-bottom: 20px;">
+            <div style="margin-bottom: 14px;">
+              <label for="card-number">信用卡卡號</label>
+              <div class="tpfield" id="card-number"></div>
+            </div>
+            <div style="display: flex; gap: 14px;">
+              <div style="flex: 1;">
+                <label for="card-expiration-date">有效期限</label>
+                <div class="tpfield" id="card-expiration-date"></div>
+              </div>
+              <div style="flex: 1;">
+                <label for="card-ccv">背面末三碼 (CCV)</label>
+                <div class="tpfield" id="card-ccv"></div>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn-pay-now" id="btnPay" disabled>請輸入完整卡片資訊</button>
+          <p id="payMsg" style="margin-top: 12px; font-size: 14px; font-weight: 600; color: #dc2626;"></p>
+          <p style="margin-top: 12px; font-size: 12px; color: var(--text-light);">
+            <i class="fa-solid fa-lock"></i> 本站透過 TapPay 金流加密傳輸，卡號直接由 TapPay 安全欄位處理，不經過民宿伺服器。
+          </p>
         </div>
 
         <div id="paidSection" style="display: none;">
@@ -128,8 +184,7 @@
     const unpaidSection = document.getElementById('unpaidSection');
     const paidSection = document.getElementById('paidSection');
     const btnPay = document.getElementById('btnPay');
-    const btn_ecpay = document.getElementById('btn_ecpay');
-    const btn_linepay = document.getElementById('btn_linepay');
+    const payMsg = document.getElementById('payMsg');
 
     // Room name mapping
     const roomNames = {
@@ -139,19 +194,51 @@
       charter: '10 人小包棟'
     };
 
-    let selectedGateway = 'ECPay';
+    // ---- TapPay Direct Pay setup ----
+    let tappayInitialized = false;
 
-    btn_ecpay.addEventListener('click', () => {
-      btn_ecpay.classList.add('active');
-      btn_linepay.classList.remove('active');
-      selectedGateway = 'ECPay';
-    });
+    async function initTapPay() {
+      if (tappayInitialized) return;
+      tappayInitialized = true;
 
-    btn_linepay.addEventListener('click', () => {
-      btn_linepay.classList.add('active');
-      btn_ecpay.classList.remove('active');
-      selectedGateway = 'LinePay';
-    });
+      try {
+        const cfg = await fetch('/api/payment/config').then(r => r.json());
+        TPDirect.setupSDK(cfg.appId, cfg.appKey, cfg.env);
+
+        if (cfg.env === 'sandbox') {
+          document.getElementById('sandboxHint').style.display = 'block';
+        }
+
+        TPDirect.card.setup({
+          fields: {
+            number: { element: '#card-number', placeholder: '**** **** **** ****' },
+            expirationDate: { element: '#card-expiration-date', placeholder: 'MM / YY' },
+            ccv: { element: '#card-ccv', placeholder: '後三碼' }
+          },
+          styles: {
+            'input': { 'font-size': '16px', 'color': '#334155' },
+            ':focus': { 'color': '#2e6f40' },
+            '.valid': { 'color': '#2e6f40' },
+            '.invalid': { 'color': '#dc2626' }
+          },
+          isMaskCreditCardNumber: true,
+          maskCreditCardNumberRange: { beginIndex: 6, endIndex: 11 }
+        });
+
+        TPDirect.card.onUpdate(update => {
+          if (update.canGetPrime) {
+            btnPay.disabled = false;
+            btnPay.textContent = '確認付款';
+          } else {
+            btnPay.disabled = true;
+            btnPay.textContent = '請輸入完整卡片資訊';
+          }
+        });
+      } catch (err) {
+        console.error('Error initializing TapPay:', err);
+        payMsg.textContent = '金流元件載入失敗，請重新整理頁面。';
+      }
+    }
 
     async function loadBooking() {
       if (!bookingId) {
@@ -212,6 +299,7 @@
       } else {
         unpaidSection.style.display = 'block';
         paidSection.style.display = 'none';
+        initTapPay(); // mount TapPay secure card fields for pending orders
       }
     }
 
@@ -237,34 +325,42 @@
       errorState.style.display = 'block';
     }
 
-    // Simulate Pay Event
-    btnPay.addEventListener('click', async () => {
+    // Real payment: getPrime from TapPay fields, then charge via the backend
+    btnPay.addEventListener('click', () => {
       btnPay.disabled = true;
-      btnPay.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 金流通道扣款中...';
-      
-      try {
-        const res = await fetch('/api/payment/simulate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bookingId: bookingId, gateway: selectedGateway })
-        });
-        const result = await res.json();
-        
-        if (result.success) {
-          setTimeout(() => {
-            renderBooking(result.booking);
-          }, 1500); // 1.5s visual delay for premium gateway simulation feel
-        } else {
-          alert(`模擬支付失敗: ${result.message}`);
+      btnPay.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 交易處理中，請勿關閉頁面...';
+      payMsg.textContent = '';
+
+      TPDirect.card.getPrime(async (result) => {
+        if (result.status !== 0) {
+          payMsg.textContent = `卡片資訊驗證失敗：${result.msg || '請確認卡號、有效期與安全碼'}`;
           btnPay.disabled = false;
-          btnPay.textContent = '模擬金流支付';
+          btnPay.textContent = '確認付款';
+          return;
         }
-      } catch (err) {
-        console.error('Error simulating payment:', err);
-        alert('連線失敗，請重試！');
-        btnPay.disabled = false;
-        btnPay.textContent = '模擬金流支付';
-      }
+
+        try {
+          const res = await fetch('/api/payment/pay', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bookingId: bookingId, prime: result.card.prime })
+          });
+          const payResult = await res.json();
+
+          if (payResult.success) {
+            renderBooking(payResult.booking);
+          } else {
+            payMsg.textContent = payResult.message || '付款失敗，請稍後再試。';
+            btnPay.disabled = false;
+            btnPay.textContent = '確認付款';
+          }
+        } catch (err) {
+          console.error('Error processing payment:', err);
+          payMsg.textContent = '連線失敗，請重試！';
+          btnPay.disabled = false;
+          btnPay.textContent = '確認付款';
+        }
+      });
     });
 
     // Load on load
