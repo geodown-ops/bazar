@@ -1,4 +1,5 @@
 node_modules/
 db.json
+tappay.local.json
 *.log
 .DS_Store

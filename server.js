@@ -8,15 +8,20 @@ const PORT = process.env.PORT || 3000;
 const DB_PATH = path.join(__dirname, 'db.json');
 
 // TapPay payment gateway (Direct Pay / Pay by Prime)
-// Defaults below are TapPay's public sandbox demo keys — they only work with
-// test cards. Set the real keys from your TapPay Portal via environment
-// variables (TAPPAY_ENV=production TAPPAY_APP_ID=... etc.) before going live.
+// Key resolution order: tappay.local.json (gitignored) > environment
+// variables > TapPay public sandbox demo keys (test cards only).
+let tappayLocal = {};
+try {
+  tappayLocal = require('./tappay.local.json');
+  console.log('TapPay: loaded keys from tappay.local.json');
+} catch (e) { /* file not present — fall back to env vars / demo keys */ }
+
 const TAPPAY = {
-  env: process.env.TAPPAY_ENV === 'production' ? 'production' : 'sandbox',
-  appId: parseInt(process.env.TAPPAY_APP_ID, 10) || 11327,
-  appKey: process.env.TAPPAY_APP_KEY || 'app_whdEWBH8e8Lzy4N6BysVRRMILYORF6UxXbiOFsICkz0J9j1C0JUlCHv1tVJC',
-  partnerKey: process.env.TAPPAY_PARTNER_KEY || 'partner_6ID1DoDlaPrfHw6HBZsULfTYtDmWs0q0ZZGKMBpp4YICWBxgK97eK3RM',
-  merchantId: process.env.TAPPAY_MERCHANT_ID || 'GlobalTesting_CTBC'
+  env: (tappayLocal.env || process.env.TAPPAY_ENV) === 'production' ? 'production' : 'sandbox',
+  appId: parseInt(tappayLocal.appId || process.env.TAPPAY_APP_ID, 10) || 11327,
+  appKey: tappayLocal.appKey || process.env.TAPPAY_APP_KEY || 'app_whdEWBH8e8Lzy4N6BysVRRMILYORF6UxXbiOFsICkz0J9j1C0JUlCHv1tVJC',
+  partnerKey: tappayLocal.partnerKey || process.env.TAPPAY_PARTNER_KEY || 'partner_6ID1DoDlaPrfHw6HBZsULfTYtDmWs0q0ZZGKMBpp4YICWBxgK97eK3RM',
+  merchantId: tappayLocal.merchantId || process.env.TAPPAY_MERCHANT_ID || 'GlobalTesting_CTBC'
 };
 const TAPPAY_API_URL = TAPPAY.env === 'production'
   ? 'https://prod.tappaysdk.com/tpc/payment/pay-by-prime'
