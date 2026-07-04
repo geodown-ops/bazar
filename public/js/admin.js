@@ -761,11 +761,47 @@ function renderCmsCarousel() {
         <button onclick="deleteCarouselConfig(${index})" style="position:absolute; top:8px; right:8px; background-color:#dc2626; color:white; border:none; border-radius:50%; width:28px; height:28px; cursor:pointer;" title="刪除此圖"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div style="padding:12px;">
-        <h5 style="margin:0; font-size:14px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${slide.title || '無標題'}</h5>
+        <h5 style="margin:0 0 4px 0; font-size:14px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${slide.title || '無標題'}</h5>
+        <p style="margin:0 0 10px 0; font-size:12px; color:var(--text-light); text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${slide.desc || '無副標題'}</p>
+        <button class="btn-action-small" onclick="editCarouselText(${index})" title="編輯輪播文字"><i class="fa-solid fa-pen-to-square"></i> 編輯文字</button>
       </div>
     `;
     grid.appendChild(div);
   });
+}
+
+// Edit carousel slide title/desc (shown as the hero headline on the front page)
+async function editCarouselText(index) {
+  const slide = cmsCarousel[index];
+  if (!slide) return;
+
+  const title = prompt('輪播主標題 (顯示為首頁大標題)：', slide.title || '');
+  if (title === null) return; // cancelled
+  const desc = prompt('輪播副標題 (顯示在大標題上方)：', slide.desc || '');
+  if (desc === null) return;
+
+  cmsCarousel[index] = { ...slide, title: title.trim(), desc: desc.trim() };
+
+  try {
+    const res = await fetch('/api/admin/config/carousel', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ carousel: cmsCarousel })
+    });
+    const result = await res.json();
+    if (result.success) {
+      alert('輪播文字更新成功！');
+      loadCmsData();
+    } else {
+      alert(`更新失敗: ${result.message}`);
+    }
+  } catch (err) {
+    console.error('Error updating carousel text:', err);
+    alert('伺服器連線錯誤。');
+  }
 }
 
 async function addCarouselImage(url) {

@@ -292,10 +292,13 @@ function updateAboutSliderDOM() {
 }
 
 // Render Carousel Slider
+let heroSlidesData = [];
+
 function renderCarousel(carousel) {
   const heroSlider = document.getElementById('heroSlider');
   heroSlider.innerHTML = '';
-  
+  heroSlidesData = carousel;
+
   carousel.forEach((slide, index) => {
     const div = document.createElement('div');
     div.className = `slide ${index === 0 ? 'active' : ''}`;
@@ -303,13 +306,39 @@ function renderCarousel(carousel) {
     heroSlider.appendChild(div);
   });
 
+  applyHeroText(0, true);
   setupSliderLoop();
+}
+
+// Sync hero headline/tagline with the active slide's stored title/desc
+function applyHeroText(index, instant) {
+  const slide = heroSlidesData[index];
+  if (!slide || (!slide.title && !slide.desc)) return; // keep current text as fallback
+
+  const titleEl = document.getElementById('heroTitle');
+  const taglineEl = document.getElementById('heroTagline');
+
+  const swap = () => {
+    if (slide.title) titleEl.textContent = slide.title;
+    if (slide.desc) taglineEl.textContent = slide.desc;
+    titleEl.classList.remove('hero-text-fade');
+    taglineEl.classList.remove('hero-text-fade');
+  };
+
+  if (instant) {
+    swap();
+    return;
+  }
+
+  titleEl.classList.add('hero-text-fade');
+  taglineEl.classList.add('hero-text-fade');
+  setTimeout(swap, 350);
 }
 
 let sliderInterval = null;
 function setupSliderLoop() {
   if (sliderInterval) clearInterval(sliderInterval);
-  
+
   const slides = document.querySelectorAll('#heroSlider .slide');
   if (slides.length <= 1) return;
 
@@ -318,6 +347,7 @@ function setupSliderLoop() {
     slides[currentSlide].classList.remove('active');
     currentSlide = (currentSlide + 1) % slides.length;
     slides[currentSlide].classList.add('active');
+    applyHeroText(currentSlide);
   }, 5000);
 }
 
