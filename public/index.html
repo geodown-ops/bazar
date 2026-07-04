@@ -7,12 +7,84 @@
   <meta name="description" content="小琉球芭扎民宿 (bazar花園) 由在地主人阿銘(施勇銘)經營，以環保貨櫃屋為建築特色，通風避暑，並融合泰式庭園植栽。提供雙人房、四人房、包棟與獨立泳池套房，並提供完善的小琉球套裝行程預約與行程估價。">
   <meta name="keywords" content="小琉球民宿, 芭扎民宿, bazar花園, 小琉球包棟, 小琉球貨櫃屋, 小琉球套裝行程, 施勇銘">
   
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="shortcut icon" href="favicon.ico">
+
   <!-- CSS -->
   <link rel="stylesheet" href="css/style.css">
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+
+  <!-- Hand-drawn illustration sprite (Liuqiu doodles for parallax decorations) -->
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none;" aria-hidden="true">
+    <symbol id="il-sun" viewBox="0 0 100 100">
+      <path d="M50 27 C63 26 74 37 73 50 C72 63 62 73 49 73 C36 73 27 62 27 49 C27 37 37 28 50 27 Z"/>
+      <path d="M50 8 L50 17 M79 21 L73 27 M92 50 L83 50 M79 79 L73 73 M50 92 L50 83 M21 79 L27 73 M8 50 L17 50 M21 21 L27 27"/>
+    </symbol>
+    <symbol id="il-cloud" viewBox="0 0 120 60">
+      <path d="M22 46 C10 46 7 32 17 27 C16 17 30 11 39 17 C43 7 61 6 67 15 C77 8 92 15 90 26 C102 25 106 40 94 45 C70 48 40 48 22 46 Z"/>
+    </symbol>
+    <symbol id="il-wave" viewBox="0 0 300 44">
+      <path d="M4 18 Q19 6 34 18 T64 18 T94 19 T124 17 T154 18 T184 19 T214 17 T244 18 T274 18 T296 18"/>
+      <path d="M34 34 Q49 24 64 34 T94 34 T124 35 T154 33 T184 34 T214 34"/>
+    </symbol>
+    <symbol id="il-palm" viewBox="0 0 120 140">
+      <path d="M58 134 C56 106 57 78 63 55 M68 134 C66 110 67 84 71 58"/>
+      <path d="M60 96 L69 94 M59 112 L68 110 M61 78 L70 76"/>
+      <path d="M66 54 C50 42 32 41 16 50 M66 54 C54 32 38 25 22 27 M66 54 C68 30 80 18 96 15 M66 54 C82 36 100 33 112 42 M66 54 C84 51 100 60 107 73"/>
+      <circle cx="59" cy="57" r="5"/>
+      <circle cx="72" cy="60" r="5"/>
+    </symbol>
+    <symbol id="il-leaf" viewBox="0 0 110 120">
+      <path d="M24 104 C10 76 22 34 58 15 C68 36 72 64 62 86 C53 104 37 111 24 104 Z"/>
+      <path d="M28 99 C38 72 46 45 56 20"/>
+      <path d="M33 85 C40 82 47 77 52 71 M30 94 C24 88 20 80 19 71 M40 64 C46 60 51 54 54 47 M36 74 C30 68 26 60 25 51"/>
+    </symbol>
+    <symbol id="il-plumeria" viewBox="0 0 100 100">
+      <path d="M50 48 C43 37 43 24 50 13 C57 24 57 37 50 48 Z"/>
+      <path d="M50 48 C43 37 43 24 50 13 C57 24 57 37 50 48 Z" transform="rotate(72 50 50)"/>
+      <path d="M50 48 C43 37 43 24 50 13 C57 24 57 37 50 48 Z" transform="rotate(144 50 50)"/>
+      <path d="M50 48 C43 37 43 24 50 13 C57 24 57 37 50 48 Z" transform="rotate(216 50 50)"/>
+      <path d="M50 48 C43 37 43 24 50 13 C57 24 57 37 50 48 Z" transform="rotate(288 50 50)"/>
+      <circle cx="50" cy="50" r="4"/>
+    </symbol>
+    <symbol id="il-turtle" viewBox="0 0 140 100">
+      <path d="M32 52 C31 34 48 21 68 22 C89 23 103 37 101 53 C99 68 82 78 64 77 C46 76 33 66 32 52 Z"/>
+      <path d="M52 28 C50 40 51 54 56 68 M81 30 C83 42 82 55 77 68 M36 44 C56 38 83 39 99 46 M36 60 C56 66 81 66 98 58"/>
+      <path d="M101 44 C109 38 119 39 123 46 C126 52 121 58 113 58 C107 58 103 54 101 50"/>
+      <circle cx="115" cy="46" r="1.6" fill="currentColor" stroke="none"/>
+      <path d="M87 27 C93 17 105 13 115 17 C111 25 103 31 95 31"/>
+      <path d="M87 73 C93 83 103 87 113 85 C110 76 102 70 94 69"/>
+      <path d="M42 71 C36 79 28 83 18 81 C22 73 30 67 38 65"/>
+      <path d="M33 50 C27 48 23 50 21 55"/>
+    </symbol>
+    <symbol id="il-fish" viewBox="0 0 130 90">
+      <path d="M14 28 C24 16 44 16 54 28 C44 40 24 40 14 28 Z M54 28 L66 20 L62 28 L66 36 Z"/>
+      <circle cx="24" cy="26" r="1.5" fill="currentColor" stroke="none"/>
+      <g transform="translate(58 30) scale(0.72)">
+        <path d="M14 28 C24 16 44 16 54 28 C44 40 24 40 14 28 Z M54 28 L66 20 L62 28 L66 36 Z"/>
+        <circle cx="24" cy="26" r="2" fill="currentColor" stroke="none"/>
+      </g>
+      <g transform="translate(28 48) scale(0.55)">
+        <path d="M14 28 C24 16 44 16 54 28 C44 40 24 40 14 28 Z M54 28 L66 20 L62 28 L66 36 Z"/>
+        <circle cx="24" cy="26" r="2.5" fill="currentColor" stroke="none"/>
+      </g>
+    </symbol>
+    <symbol id="il-star" viewBox="0 0 100 100">
+      <path d="M50 12 C54 26 60 32 74 34 C64 44 62 52 64 66 C52 60 48 60 36 66 C38 52 36 44 26 34 C40 32 46 26 50 12 Z"/>
+      <path d="M50 30 L50 34 M60 40 L57 42 M56 52 L53 50 M44 52 L47 50 M40 40 L43 42"/>
+    </symbol>
+    <symbol id="il-seedling" viewBox="0 0 80 90">
+      <path d="M40 84 C40 68 40 56 40 44"/>
+      <path d="M40 46 C29 46 22 39 21 28 C32 28 39 35 40 46 Z"/>
+      <path d="M40 46 C51 46 58 39 59 28 C48 28 41 35 40 46 Z"/>
+    </symbol>
+  </svg>
 
   <!-- Sticky Header -->
   <header>
@@ -45,6 +117,11 @@
     <div class="hero-slider" id="heroSlider">
       <!-- Loaded dynamically -->
     </div>
+    <div class="decor-layer" aria-hidden="true">
+      <svg class="decor" data-parallax="0.22" style="top: 16%; left: 6%; width: 130px; height: 65px; color: #ffffff; opacity: 0.45; --fd: -2s; --fdur: 9s;"><use href="#il-cloud"/></svg>
+      <svg class="decor" data-parallax="0.12" style="top: 10%; right: 10%; width: 90px; height: 45px; color: #ffffff; opacity: 0.32; --fd: -5s; --fdur: 11s;"><use href="#il-cloud"/></svg>
+      <svg class="decor decor-lg" data-parallax="0.3" style="bottom: 12%; right: 5%; width: 150px; height: 104px; color: #ffffff; opacity: 0.3; --fd: -3s;"><use href="#il-fish"/></svg>
+    </div>
     <div class="hero-content">
       <p class="hero-tagline">小琉球環保貨櫃庭園民宿</p>
       <h1 class="hero-title">芭扎民宿 bazar花園</h1>
@@ -58,20 +135,25 @@
 
   <!-- About Section -->
   <section id="about">
+    <div class="decor-layer" aria-hidden="true">
+      <svg class="decor decor-lg" data-parallax="-0.15" data-rotate="24" style="top: 40px; right: -36px; width: 200px; height: 218px; color: #2e6f40; opacity: 0.11; --fd: -2s; --fdur: 10s;"><use href="#il-leaf"/></svg>
+      <svg class="decor" data-parallax="0.18" style="bottom: 70px; left: 2.5%; width: 110px; height: 110px; color: #f58f29; opacity: 0.16; --fd: -5s;"><use href="#il-plumeria"/></svg>
+      <svg class="decor" data-parallax="0.1" style="top: 60px; left: 6%; width: 64px; height: 72px; color: #2e6f40; opacity: 0.14; --fd: -7s; --fdur: 7s;"><use href="#il-seedling"/></svg>
+    </div>
     <div class="container">
       <div class="about-grid">
-        <div class="about-img-box">
-          <img src="assets/room_double.jpg" alt="芭扎民宿客房實景" class="about-img">
+        <div class="about-img-box" id="aboutImgBox">
+          <img src="assets/room_double.jpg" alt="芭扎民宿客房實景" class="about-img" id="aboutImage">
         </div>
         <div class="about-info">
-          <p class="section-subtitle">ABOUT BAZAR</p>
-          <h2 class="section-title">與環境共生的貨櫃建築</h2>
+          <p class="section-subtitle" id="aboutSubtitle">ABOUT BAZAR</p>
+          <h2 class="section-title" id="aboutTitle">與環境共生的貨櫃建築</h2>
           <div class="section-divider" style="margin: 0 0 24px 0;"></div>
-          <p>「芭扎民宿 (bazar花園)」由小琉球在地人<b>施勇銘 (阿銘)</b> 經營。民宿突破傳統水泥建築，採用環保貨櫃屋再利用方式搭建。在設計上，阿銘巧妙加強了貨櫃的隔熱與通風，透過大片採光的落地窗與氣流循環系統，打造出明亮、寬敞且涼爽的居住空間。</p>
+          <p id="aboutP1">「芭扎民宿 (bazar花園)」由小琉球在地人<b>施勇銘 (阿銘)</b> 經營。民宿突破傳統水泥建築，採用環保貨櫃屋再利用方式搭建。在設計上，阿銘巧妙加強了貨櫃的隔熱與通風，透過大片採光的落地窗與氣流循環系統，打造出明亮、寬敞且涼爽的居住空間。</p>
           <br>
-          <p>庭園則融入了阿銘深愛的<b>泰式度假風格</b>，種植美人蕉、黃枝花與桂花等翠綠植栽。這裡不僅鄰近熱鬧的老街與市場，極具便利的生活機能，還能帶您深入體驗小琉球最純粹的生態魅力。</p>
-          
-          <div class="about-features">
+          <p id="aboutP2">庭園則融入了阿銘深愛的<b>泰式度假風格</b>，種植美人蕉、黃枝花與桂花等翠綠植栽。這裡不僅鄰近熱鬧的老街與市場，極具便利的生活機能，還能帶您深入體驗小琉球最純粹的生態魅力。</p>
+
+          <div class="about-features" id="aboutFeatures">
             <div class="feature-item">
               <div class="feature-icon"><i class="fa-solid fa-wind"></i></div>
               <div>
@@ -94,6 +176,11 @@
 
   <!-- Rooms Section -->
   <section id="rooms" style="background-color: #fafdfb;">
+    <div class="decor-layer" aria-hidden="true">
+      <svg class="decor decor-lg" data-parallax="-0.12" style="top: 70px; left: 1%; width: 170px; height: 198px; color: #2e6f40; opacity: 0.11; --fd: -1s; --fdur: 10s;"><use href="#il-palm"/></svg>
+      <svg class="decor" data-parallax="0.16" style="top: 50px; right: 4%; width: 105px; height: 105px; color: #f58f29; opacity: 0.16; --fd: -4s;"><use href="#il-sun"/></svg>
+      <svg class="decor" data-parallax="-0.08" style="bottom: 60px; right: 8%; width: 80px; height: 80px; color: #f58f29; opacity: 0.11; --fd: -6s; --fdur: 9s;"><use href="#il-plumeria"/></svg>
+    </div>
     <div class="container">
       <div class="section-header">
         <p class="section-subtitle">OUR ROOMS</p>
@@ -109,6 +196,11 @@
 
   <!-- Booking Section -->
   <section id="booking" class="booking-section">
+    <div class="decor-layer" aria-hidden="true">
+      <svg class="decor decor-lg" data-parallax="-0.1" style="top: 130px; right: 1.5%; width: 150px; height: 104px; color: #1b4965; opacity: 0.13; --fd: -3s; --fdur: 9s;"><use href="#il-fish"/></svg>
+      <svg class="decor" data-parallax="0.12" style="bottom: 90px; left: 2%; width: 90px; height: 90px; color: #f58f29; opacity: 0.15; --fd: -1s;"><use href="#il-star"/></svg>
+      <svg class="decor decor-lg" data-parallax="0.2" style="bottom: 240px; right: 4%; width: 220px; height: 32px; color: #1b4965; opacity: 0.12; --fd: -6s; --fdur: 12s;"><use href="#il-wave"/></svg>
+    </div>
     <div class="container">
       <div class="section-header">
         <p class="section-subtitle">RESERVATION</p>
@@ -398,7 +490,75 @@
 
             <!-- Notes -->
             <div class="form-group" style="margin-top: 30px;">
-              <label for="n      <div class="gallery-grid" id="galleryGrid">
+              <label for="note">備註事項 (選填)</label>
+              <textarea id="note" name="note" rows="3" placeholder="例如：預計抵達船班時間，或特殊床型需求..."></textarea>
+            </div>
+          </form>
+        </div>
+
+        <!-- Summary & Submit -->
+        <div class="summary-card">
+          <h3 class="summary-title"><i class="fa-solid fa-receipt"></i> 預估訂單明細</h3>
+
+          <div class="summary-row">
+            <span>預訂房型：</span>
+            <span id="summaryRoom">翠竹雙人房</span>
+          </div>
+          <div class="summary-row">
+            <span>住宿天數：</span>
+            <span id="summaryNights">1 晚</span>
+          </div>
+          <div class="summary-row">
+            <span>住房人數：</span>
+            <span id="summaryPeople">2 大 0 小</span>
+          </div>
+          <div class="summary-row">
+            <span>客房小計：</span>
+            <span id="summaryRoomPrice">NT$ 2,000</span>
+          </div>
+
+          <!-- Dynamic Packages Summary List -->
+          <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+            <p style="font-size: 13px; font-weight: 700; margin-bottom: 8px;">加購套裝項目：</p>
+            <ul class="summary-packages-list" id="summaryPackagesList">
+              <li>無加購項目</li>
+            </ul>
+            <div class="summary-row" style="font-weight: 600;">
+              <span>套裝小計：</span>
+              <span id="summaryPackagePrice">NT$ 0</span>
+            </div>
+          </div>
+
+          <div class="summary-row total">
+            <span>預估總金額：</span>
+            <span id="summaryTotal">NT$ 2,000</span>
+          </div>
+
+          <p style="font-size: 12px; color: var(--text-light); margin: 16px 0; text-align: center;">
+            * 此為線上即時報價，送出後將為您保留房間並引導至模擬付款頁面。
+          </p>
+
+          <button type="button" class="btn-primary" id="btnSubmitBooking" style="width: 100%;">確認訂房並前往付款</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Gallery Section -->
+  <section id="gallery">
+    <div class="decor-layer" aria-hidden="true">
+      <svg class="decor decor-lg" data-parallax="0.15" style="top: 80px; left: 0.5%; width: 210px; height: 150px; color: #1b4965; opacity: 0.13; --fd: -2s; --fdur: 10s;"><use href="#il-turtle"/></svg>
+      <svg class="decor" data-parallax="-0.1" style="bottom: 40px; right: 2%; width: 300px; height: 44px; color: #1b4965; opacity: 0.1; --fd: -5s; --fdur: 12s;"><use href="#il-wave"/></svg>
+      <svg class="decor" data-parallax="0.2" style="top: 60px; right: 6%; width: 78px; height: 78px; color: #f58f29; opacity: 0.13; --fd: -7s;"><use href="#il-plumeria"/></svg>
+    </div>
+    <div class="container">
+      <div class="section-header">
+        <p class="section-subtitle">GALLERY</p>
+        <h2 class="section-title">芭扎寫真與琉球風情</h2>
+        <div class="section-divider"></div>
+      </div>
+
+      <div class="gallery-grid" id="galleryGrid">
         <!-- Loaded dynamically -->
       </div>
     </div>
@@ -406,6 +566,11 @@
 
   <!-- Rules & Information Section -->
   <section id="rules" style="background-color: #f1f6f3; border-top: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);">
+    <div class="decor-layer" aria-hidden="true">
+      <svg class="decor" data-parallax="-0.12" style="top: 60px; left: 3%; width: 120px; height: 60px; color: #1b4965; opacity: 0.13; --fd: -3s; --fdur: 11s;"><use href="#il-cloud"/></svg>
+      <svg class="decor" data-parallax="0.15" style="bottom: 70px; right: 4%; width: 72px; height: 72px; color: #f58f29; opacity: 0.14; --fd: -1s;"><use href="#il-star"/></svg>
+      <svg class="decor decor-lg" data-parallax="0.08" style="top: 100px; right: 12%; width: 60px; height: 68px; color: #2e6f40; opacity: 0.12; --fd: -6s; --fdur: 8s;"><use href="#il-seedling"/></svg>
+    </div>
     <div class="container">
       <div class="section-header">
         <p class="section-subtitle">INFORMATION</p>
@@ -429,72 +594,13 @@
     </div>
   </section>
 
-  <!-- Contact Section -->�</h4>
-            <p class="gallery-desc">明亮寬敞的床鋪、質感掛燈與木質電視架設計</p>
-          </div>
-        </div>
-
-        <div class="gallery-card" onclick="openLightbox('assets/room_interior_2.jpg')">
-          <img src="assets/room_interior_2.jpg" alt="溫馨沙發區與紅磚牆面">
-          <div class="gallery-overlay">
-            <h4 class="gallery-title">精緻沙發休閒區</h4>
-            <p class="gallery-desc">沙發區與質樸的紅磚床頭壁貼設計</p>
-          </div>
-        </div>
-
-        <div class="gallery-card" onclick="openLightbox('assets/pool_outdoor_1.jpg')">
-          <img src="assets/pool_outdoor_1.jpg" alt="專屬私人戲水池">
-          <div class="gallery-overlay">
-            <h4 class="gallery-title">私人獨立游泳池</h4>
-            <p class="gallery-desc">澄花與弦木套房專屬的露天湛藍戲水池</p>
-          </div>
-        </div>
-
-        <div class="gallery-card" onclick="openLightbox('assets/room_bathroom.jpg')">
-          <img src="assets/room_bathroom.jpg" alt="現代質感衛浴空間">
-          <div class="gallery-overlay">
-            <h4 class="gallery-title">現代質感乾濕分離衛浴</h4>
-            <p class="gallery-desc">乾淨舒適的洗手台、免治馬桶與明亮衛浴空間</p>
-          </div>
-        </div>
-
-        <div class="gallery-card" onclick="openLightbox('assets/flower_night.jpg')">
-          <img src="assets/flower_night.jpg" alt="棋盤腳花">
-          <div class="gallery-overlay">
-            <h4 class="gallery-title">夜綻棋盤腳花</h4>
-            <p class="gallery-desc">有「夏之雪」美稱的棋盤腳，在小琉球夜間璀璨盛開</p>
-          </div>
-        </div>
-
-        <div class="gallery-card" onclick="openLightbox('assets/star_sand.jpg')">
-          <img src="assets/star_sand.jpg" alt="潮間帶星沙生態">
-          <div class="gallery-overlay">
-            <h4 class="gallery-title">潮間帶星沙</h4>
-            <p class="gallery-desc">潮間帶發現的細緻星砂與豐富海洋生態</p>
-          </div>
-        </div>
-
-        <div class="gallery-card" onclick="openLightbox('assets/lobster_cave.jpg')">
-          <img src="assets/lobster_cave.jpg" alt="龍蝦洞月光海">
-          <div class="gallery-overlay">
-            <h4 class="gallery-title">龍蝦洞月光海</h4>
-            <p class="gallery-desc">滿月映照海面，靜謐幽美的龍蝦洞礁岩海岸</p>
-          </div>
-        </div>
-
-        <div class="gallery-card" onclick="openLightbox('assets/temple_banquet.jpg')">
-          <img src="assets/temple_banquet.jpg" alt="小琉球在地迎王廟會辦桌">
-          <div class="gallery-overlay">
-            <h4 class="gallery-title">在地迎王廟會辦桌</h4>
-            <p class="gallery-desc">感受小琉球熱鬧款待、傳承百年的迎王祭典辦桌文化</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- Contact Section -->
   <section id="contact" style="background-color: #fafdfb;">
+    <div class="decor-layer" aria-hidden="true">
+      <svg class="decor" data-parallax="0.1" style="bottom: 30px; left: 2%; width: 280px; height: 41px; color: #1b4965; opacity: 0.11; --fd: -4s; --fdur: 12s;"><use href="#il-wave"/></svg>
+      <svg class="decor decor-lg" data-parallax="-0.14" data-rotate="-8" style="top: 80px; right: 3%; width: 130px; height: 93px; color: #2e6f40; opacity: 0.11; --fd: -2s; --fdur: 10s;"><use href="#il-turtle"/></svg>
+      <svg class="decor" data-parallax="0.18" style="top: 50px; left: 8%; width: 100px; height: 50px; color: #1b4965; opacity: 0.1; --fd: -6s; --fdur: 9s;"><use href="#il-cloud"/></svg>
+    </div>
     <div class="container">
       <div class="section-header">
         <p class="section-subtitle">CONTACT US</p>
@@ -577,6 +683,6 @@
   </div>
 
   <!-- JavaScript -->
-  <script src="js/app.js?v=5"></script>
+  <script src="js/app.js?v=8"></script>
 </body>
 </html>

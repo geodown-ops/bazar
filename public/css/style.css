@@ -1464,3 +1464,59 @@ footer {
     padding: 20px;
   }
 }
+
+/* ============================================
+   Hand-drawn Parallax Decorations
+   ============================================ */
+section {
+  position: relative;
+}
+
+section > .container {
+  position: relative;
+  z-index: 1;
+}
+
+.decor-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero .decor-layer {
+  z-index: 2;
+}
+
+.decor {
+  position: absolute;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  will-change: transform;
+}
+
+/* Gentle idle floating on top of the scroll parallax */
+.decor use {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: decorFloat var(--fdur, 8s) ease-in-out infinite alternate;
+  animation-delay: var(--fd, 0s);
+}
+
+@keyframes decorFloat {
+  from { transform: translateY(-7px) rotate(-1.2deg); }
+  to   { transform: translateY(7px) rotate(1.2deg); }
+}
+
+@media (max-width: 768px) {
+  .decor-lg { display: none; }
+  .decor { stroke-width: 2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .decor use { animation: none; }
+}

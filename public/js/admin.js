@@ -426,14 +426,15 @@ let cmsRooms = [];
 let cmsCarousel = [];
 let cmsGallery = [];
 let cmsRules = {};
+let cmsAbout = {};
 let currentCmsSubTab = 'rooms';
 
 // Subtab switching in CMS
 function switchCmsSubTab(subTab) {
   currentCmsSubTab = subTab;
-  
+
   // Update buttons classes
-  ['rooms', 'carousel', 'gallery', 'rules'].forEach(tab => {
+  ['rooms', 'carousel', 'about', 'gallery', 'rules'].forEach(tab => {
     const btn = document.getElementById(`subtab_${tab}_btn`);
     const pane = document.getElementById(`cms_subtab_${tab}`);
     if (tab === subTab) {
@@ -460,11 +461,13 @@ async function loadCmsData() {
       cmsCarousel = result.siteConfig.carousel || [];
       cmsGallery = result.siteConfig.gallery || [];
       cmsRules = result.siteConfig.rules || { checkInTime: '15:00', checkOutTime: '11:00', reminders: [], payment: '' };
+      cmsAbout = result.siteConfig.about || { subtitle: 'ABOUT BAZAR', title: '', image: '', paragraph1: '', paragraph2: '', features: [] };
 
       renderCmsRooms();
       renderCmsCarousel();
       renderCmsGallery();
       renderCmsRules();
+      renderCmsAbout();
     }
   } catch (err) {
     console.error('Error loading CMS config:', err);
@@ -540,8 +543,6 @@ function openRoomEditor(roomId = null) {
   const consecutiveInput = document.getElementById('editRoom_priceConsecutive');
   const descInput = document.getElementById('editRoom_description');
   const amenitiesInput = document.getElementById('editRoom_amenities');
-  const imgInput = document.getElementById('editRoom_image');
-  const previewImg = document.getElementById('editRoom_preview');
 
   // Reset file input
   document.getElementById('editRoom_file').value = '';
@@ -563,16 +564,9 @@ function openRoomEditor(roomId = null) {
     consecutiveInput.value = room.priceConsecutive;
     descInput.value = room.description;
     amenitiesInput.value = room.amenities.join(', ');
-    
-    currentEditingRoomImages = [...(room.images || [])]; renderRoomImagesGrid();
-    imgInput.value = imageUrl;
-    
-    if (imageUrl) {
-      previewImg.src = getImgSrc(imageUrl); // Path correction for preview
-      previewImg.style.display = 'block';
-    } else {
-      previewImg.style.display = 'none';
-    }
+
+    currentEditingRoomImages = [...(room.images || [])];
+    renderRoomImagesGrid();
   } else {
     // Add new room
     titleEl.textContent = '新增特色房型';
@@ -604,15 +598,17 @@ async function uploadCmsImage(type) {
   if (type === 'room') fileInput = document.getElementById('editRoom_file');
   else if (type === 'carousel') fileInput = document.getElementById('carousel_file');
   else if (type === 'gallery') fileInput = document.getElementById('gallery_file');
+  else if (type === 'about') fileInput = document.getElementById('about_file');
 
   if (!fileInput || fileInput.files.length === 0) {
     alert('請先選擇一個相片檔案。');
     return;
   }
 
-  const file = fileInput.files[0];
   const formData = new FormData();
-  formData.append('image', file);
+  for (let i = 0; i < fileInput.files.length; i++) {
+    formData.append('images', fileInput.files[i]);
+  }
 
   try {
     const res = await fetch('/api/admin/upload', {
@@ -640,6 +636,12 @@ async function uploadCmsImage(type) {
         const gBox = document.getElementById('gallery_preview_box');
         if (gBox) gBox.style.display = 'none';
         await addGalleryItem(url);
+      } else if (type === 'about') {
+        const urls = result.imageUrls || [result.imageUrl];
+        urls.forEach(u => cmsAboutImages.push(u));
+        renderAboutImagesGrid();
+        fileInput.value = '';
+        alert(`成功上傳 ${urls.length} 張照片！請記得按下「儲存關於芭扎內容」讓前台生效。`);
       }
     } else {
       alert(`上傳失敗: ${result.message}`);
@@ -969,6 +971,184 @@ async function saveRulesConfig() {
   }
 }
 
+// E. About Section Management
+let cmsAboutImages = [];
+
+function renderCmsAbout() {
+  const subtitleEl = document.getElementById('editAbout_subtitle');
+  if (!subtitleEl) return; // panel not present
+
+  subtitleEl.value = cmsAbout.subtitle || '';
+  document.getElementById('editAbout_title').value = cmsAbout.title || '';
+  document.getElementById('editAbout_p1').value = cmsAbout.paragraph1 || '';
+  document.getElementById('editAbout_p2').value = cmsAbout.paragraph2 || '';
+
+  // Support legacy single `image` field
+  cmsAboutImages = Array.isArray(cmsAbout.images) && cmsAbout.images.length > 0
+    ? [...cmsAbout.images]
+    : (cmsAbout.image ? [cmsAbout.image] : []);
+  renderAboutImagesGrid();
+
+  renderAboutFeaturesEditor(cmsAbout.features || []);
+}
+
+function renderAboutImagesGrid() {
+  const grid = document.getElementById('about_images_grid');
+  grid.innerHTML = '';
+
+  if (cmsAboutImages.length === 0) {
+    grid.innerHTML = '<p style="font-size: 12px; color: var(--text-light);">尚未加入任何照片，請點擊上方按鈕選擇並上傳照片。</p>';
+    return;
+  }
+
+  cmsAboutImages.forEach((url, idx) => {
+    const card = document.createElement('div');
+    card.style.cssText = 'position: relative; width: 100px; height: 80px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border-color);';
+    card.innerHTML = `
+      <img src="${getImgSrc(url)}" style="width: 100%; height: 100%; object-fit: cover;">
+      <button type="button" onclick="removeAboutImage(${idx})" style="position: absolute; top: 4px; right: 4px; background: #dc2626; color: #fff; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 10px;" title="刪除此照片"><i class="fa-solid fa-xmark"></i></button>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function removeAboutImage(idx) {
+  cmsAboutImages.splice(idx, 1);
+  renderAboutImagesGrid();
+}
+
+function renderAboutFeaturesEditor(features) {
+  const editor = document.getElementById('aboutFeaturesEditor');
+  editor.innerHTML = '';
+
+  features.forEach(f => {
+    editor.appendChild(buildAboutFeatureRow(f));
+  });
+
+  if (features.length === 0) {
+    const hint = document.createElement('p');
+    hint.style.cssText = 'font-size: 13px; color: var(--text-light); margin: 0;';
+    hint.textContent = '尚無特色亮點，點擊下方按鈕新增。';
+    hint.className = 'about-feature-empty-hint';
+    editor.appendChild(hint);
+  }
+}
+
+function buildAboutFeatureRow(feature) {
+  const row = document.createElement('div');
+  row.className = 'about-feature-row';
+  row.style.cssText = 'display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: #f7faf8; border: 1px solid var(--border-color); border-radius: 8px; padding: 10px;';
+
+  const iconInput = document.createElement('input');
+  iconInput.type = 'text';
+  iconInput.className = 'feature-icon-input';
+  iconInput.placeholder = '圖示 (fa-wind)';
+  iconInput.style.cssText = 'width: 130px; padding: 8px;';
+  iconInput.value = feature.icon || '';
+
+  const titleInput = document.createElement('input');
+  titleInput.type = 'text';
+  titleInput.className = 'feature-title-input';
+  titleInput.placeholder = '亮點標題 *';
+  titleInput.style.cssText = 'width: 160px; padding: 8px;';
+  titleInput.value = feature.title || '';
+
+  const descInput = document.createElement('input');
+  descInput.type = 'text';
+  descInput.className = 'feature-desc-input';
+  descInput.placeholder = '亮點說明';
+  descInput.style.cssText = 'flex: 1; min-width: 200px; padding: 8px;';
+  descInput.value = feature.desc || '';
+
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.className = 'btn-action-small';
+  delBtn.style.color = '#dc2626';
+  delBtn.title = '刪除此亮點';
+  delBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+  delBtn.onclick = () => {
+    row.remove();
+    const editor = document.getElementById('aboutFeaturesEditor');
+    if (!editor.querySelector('.about-feature-row')) {
+      renderAboutFeaturesEditor([]);
+    }
+  };
+
+  row.appendChild(iconInput);
+  row.appendChild(titleInput);
+  row.appendChild(descInput);
+  row.appendChild(delBtn);
+  return row;
+}
+
+function addAboutFeature() {
+  const editor = document.getElementById('aboutFeaturesEditor');
+  const hint = editor.querySelector('.about-feature-empty-hint');
+  if (hint) hint.remove();
+  editor.appendChild(buildAboutFeatureRow({ icon: '', title: '', desc: '' }));
+}
+
+function collectAboutFeatures() {
+  const rows = document.querySelectorAll('#aboutFeaturesEditor .about-feature-row');
+  const features = [];
+  rows.forEach(row => {
+    const icon = row.querySelector('.feature-icon-input').value.trim();
+    const title = row.querySelector('.feature-title-input').value.trim();
+    const desc = row.querySelector('.feature-desc-input').value.trim();
+    if (title) {
+      features.push({ icon, title, desc });
+    }
+  });
+  return features;
+}
+
+async function saveAboutConfig() {
+  const aboutConfigMsg = document.getElementById('aboutConfigMsg');
+  const title = document.getElementById('editAbout_title').value.trim();
+  const paragraph1 = document.getElementById('editAbout_p1').value.trim();
+
+  if (!title || !paragraph1) {
+    aboutConfigMsg.textContent = '請至少填寫「區塊主標題」與「介紹段落一」！';
+    aboutConfigMsg.style.color = '#dc2626';
+    return;
+  }
+
+  const updatedAbout = {
+    subtitle: document.getElementById('editAbout_subtitle').value.trim(),
+    title,
+    images: [...cmsAboutImages],
+    image: cmsAboutImages[0] || '',
+    paragraph1,
+    paragraph2: document.getElementById('editAbout_p2').value.trim(),
+    features: collectAboutFeatures()
+  };
+
+  try {
+    const res = await fetch('/api/admin/config/about', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ about: updatedAbout })
+    });
+    const result = await res.json();
+    if (result.success) {
+      aboutConfigMsg.textContent = '關於芭扎內容儲存成功！前台已即時更新。';
+      aboutConfigMsg.style.color = '#10b981';
+      setTimeout(() => { aboutConfigMsg.textContent = ''; }, 3000);
+      loadCmsData();
+    } else {
+      aboutConfigMsg.textContent = `儲存失敗: ${result.message}`;
+      aboutConfigMsg.style.color = '#dc2626';
+    }
+  } catch (err) {
+    console.error('Error saving about config:', err);
+    aboutConfigMsg.textContent = '伺服器連線錯誤。';
+    aboutConfigMsg.style.color = '#dc2626';
+  }
+}
+
 // ==========================================
 // Live Photo Upload Instant Previews
 // ==========================================
@@ -977,8 +1157,8 @@ function setupImagePreviewListeners() {
   if (roomFile) {
     roomFile.addEventListener('change', (e) => {
       const file = e.target.files[0];
-      if (file) {
-        const previewImg = document.getElementById('editRoom_preview');
+      const previewImg = document.getElementById('editRoom_preview');
+      if (file && previewImg) {
         previewImg.src = URL.createObjectURL(file);
         previewImg.style.display = 'inline-block';
       }

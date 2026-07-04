@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>芭扎民宿管理後台 | bazar花園</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="shortcut icon" href="favicon.ico">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -146,6 +150,7 @@
             <div style="display: flex; gap: 12px; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; flex-wrap: wrap;">
               <button class="btn-action-small btn-action-primary" id="subtab_rooms_btn" onclick="switchCmsSubTab('rooms')">房型與房價管理</button>
               <button class="btn-action-small" id="subtab_carousel_btn" onclick="switchCmsSubTab('carousel')">首頁輪播圖管理</button>
+              <button class="btn-action-small" id="subtab_about_btn" onclick="switchCmsSubTab('about')">關於芭扎介紹</button>
               <button class="btn-action-small" id="subtab_gallery_btn" onclick="switchCmsSubTab('gallery')">寫真圖庫管理</button>
               <button class="btn-action-small" id="subtab_rules_btn" onclick="switchCmsSubTab('rules')">住宿守則與匯款</button>
             </div>
@@ -277,6 +282,58 @@
               </div>
             </div>
 
+            <!-- CMS Sub-Tab: About Section Management -->
+            <div id="cms_subtab_about" style="display:none;">
+              <h4 style="font-size: 16px; margin-bottom: 16px;"><i class="fa-solid fa-house-chimney"></i> 「關於芭扎」首頁介紹編輯</h4>
+
+              <div class="form-group-row">
+                <div class="form-group">
+                  <label for="editAbout_subtitle">英文小標 (顯示在標題上方)</label>
+                  <input type="text" id="editAbout_subtitle" placeholder="例如: ABOUT BAZAR">
+                </div>
+                <div class="form-group">
+                  <label for="editAbout_title">區塊主標題 *</label>
+                  <input type="text" id="editAbout_title" placeholder="例如: 與環境共生的貨櫃建築">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="editAbout_p1">介紹段落一 *</label>
+                <textarea id="editAbout_p1" rows="4" placeholder="民宿的經營者與建築特色介紹..."></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="editAbout_p2">介紹段落二</label>
+                <textarea id="editAbout_p2" rows="4" placeholder="庭園風格與周邊環境介紹..."></textarea>
+              </div>
+
+              <div class="form-group">
+                <label>介紹形象照片 (顯示在文字左側，可上傳多張自動建立輪播)</label>
+                <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;">
+                  <input type="file" id="about_file" accept="image/*" multiple>
+                  <button type="button" class="btn-primary" onclick="uploadCmsImage('about')" style="font-size: 13px; padding: 8px 16px;">上傳所選照片</button>
+                </div>
+                <div style="padding: 16px; background: #ffffff; border: 1px dashed var(--border-color); border-radius: 8px;">
+                  <p style="font-size: 12px; color: var(--text-light); margin-bottom: 10px; font-weight: 600;">📷 目前介紹照片列表 (兩張以上前台將自動輪播)：</p>
+                  <div id="about_images_grid" style="display: flex; flex-wrap: wrap; gap: 12px;">
+                    <!-- JS generated thumbnails -->
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>特色亮點清單 (顯示在段落下方，建議 2~4 個)</label>
+                <div id="aboutFeaturesEditor" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px;">
+                  <!-- JS generated feature rows -->
+                </div>
+                <button type="button" class="btn-action-small" onclick="addAboutFeature()"><i class="fa-solid fa-plus"></i> 新增特色亮點</button>
+                <p style="font-size: 12px; color: var(--text-light); margin-top: 8px;">圖示欄請填 FontAwesome 名稱 (例如: fa-wind, fa-leaf, fa-umbrella-beach)，留空則使用預設打勾圖示。</p>
+              </div>
+
+              <button class="btn-primary" style="margin-top: 10px;" onclick="saveAboutConfig()">儲存關於芭扎內容</button>
+              <p id="aboutConfigMsg" style="margin-top: 16px; font-size: 14px; font-weight: 600;"></p>
+            </div>
+
             <!-- CMS Sub-Tab 3: Gallery Management -->
             <div id="cms_subtab_gallery" style="display:none;">
               <div style="background-color: #f7faf8; border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; margin-bottom: 30px;">
@@ -316,11 +373,11 @@
               
               <div class="form-group">
                 <label>退房與入住時間設定</label>
-                <div style="display: flex; gap: 16px; align-items: center; max-width: 400px;">
-                  <span style="font-size: 14px;">入住時間：</span>
-                  <input type="text" id="editRules_checkInTime" style="padding: 8px;" placeholder="例如: 15:00">
-                  <span style="font-size: 14px; margin-left: 10px;">退房時間：</span>
-                  <input type="text" id="editRules_checkOutTime" style="padding: 8px;" placeholder="例如: 11:00">
+                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                  <span style="font-size: 14px; white-space: nowrap; flex-shrink: 0;">入住時間：</span>
+                  <input type="text" id="editRules_checkInTime" style="padding: 8px; width: 110px; flex: 0 0 auto;" placeholder="例如: 15:00">
+                  <span style="font-size: 14px; white-space: nowrap; flex-shrink: 0; margin-left: 12px;">退房時間：</span>
+                  <input type="text" id="editRules_checkOutTime" style="padding: 8px; width: 110px; flex: 0 0 auto;" placeholder="例如: 11:00">
                 </div>
               </div>
 
@@ -362,6 +419,6 @@
     </div>
   </div>
 
-  <script src="js/admin.js?v=6"></script>
+  <script src="js/admin.js?v=8"></script>
 </body>
 </html>

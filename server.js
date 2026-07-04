@@ -510,6 +510,21 @@ app.put('/api/admin/config/rules', requireAdmin, (req, res) => {
   res.json({ success: true, message: '住宿規則與匯款資訊更新成功。' });
 });
 
+// 16. Admin API - Update About Config
+app.put('/api/admin/config/about', requireAdmin, (req, res) => {
+  const { about } = req.body;
+  if (!about || typeof about !== 'object' || Array.isArray(about)) {
+    return res.status(400).json({ success: false, message: '關於芭扎資料結構不正確。' });
+  }
+
+  const db = readDb();
+  db.siteConfig = db.siteConfig || {};
+  db.siteConfig.about = about;
+  writeDb(db);
+
+  res.json({ success: true, message: '關於芭扎內容更新成功。' });
+});
+
 // Fallback: Route /bzzar/* requests to index.html (SPA feel)
 app.get('/bzzar/*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

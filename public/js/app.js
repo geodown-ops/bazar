@@ -165,9 +165,12 @@ async function loadDynamicContent() {
     
     if (result.success && result.siteConfig) {
       const config = result.siteConfig;
-      
+
       // A. Render Hero Carousel
       renderCarousel(config.carousel || []);
+
+      // A-2. Render About Section
+      renderAbout(config.about || {});
 
       // B. Render Room Cards & Dropdown
       renderRooms(config.rooms || []);
@@ -180,6 +183,111 @@ async function loadDynamicContent() {
     }
   } catch (err) {
     console.error('Error loading dynamic B&B content:', err);
+  }
+}
+
+// Render About Section (falls back to static HTML content when a field is empty)
+function renderAbout(about) {
+  if (!about || Object.keys(about).length === 0) return;
+
+  if (about.subtitle) document.getElementById('aboutSubtitle').textContent = about.subtitle;
+  if (about.title) document.getElementById('aboutTitle').textContent = about.title;
+
+  // Multi-image slider (falls back to legacy single `image` field)
+  const aboutImages = Array.isArray(about.images) && about.images.length > 0
+    ? about.images
+    : (about.image ? [about.image] : []);
+  if (aboutImages.length > 0) renderAboutSlider(aboutImages);
+
+  if (about.paragraph1) document.getElementById('aboutP1').textContent = about.paragraph1;
+  if (about.paragraph2) document.getElementById('aboutP2').textContent = about.paragraph2;
+
+  if (Array.isArray(about.features) && about.features.length > 0) {
+    const box = document.getElementById('aboutFeatures');
+    box.innerHTML = '';
+    about.features.forEach(f => {
+      const iconClass = (f.icon || 'fa-circle-check').replace(/[^a-z0-9-]/g, '');
+      const item = document.createElement('div');
+      item.className = 'feature-item';
+      item.innerHTML = `
+        <div class="feature-icon"><i class="fa-solid ${iconClass}"></i></div>
+        <div>
+          <h4 class="feature-title"></h4>
+          <p class="feature-desc"></p>
+        </div>
+      `;
+      item.querySelector('.feature-title').textContent = f.title || '';
+      item.querySelector('.feature-desc').textContent = f.desc || '';
+      box.appendChild(item);
+    });
+  }
+}
+
+// About image carousel — independent state so renderRooms() map resets can't break it
+let aboutSliderImages = [];
+let aboutSlideIndex = 0;
+let aboutSliderTimer = null;
+
+function renderAboutSlider(images) {
+  const box = document.getElementById('aboutImgBox');
+  aboutSliderImages = images;
+  aboutSlideIndex = 0;
+
+  const slidesHtml = images.map((url, i) => `
+    <img src="${url}" alt="芭扎民宿環境實景" class="room-img ${i === 0 ? 'active' : ''}" onclick="openLightbox('${url}')" style="cursor: pointer;" title="點擊放大觀看原圖">
+  `).join('');
+
+  const hasMultiple = images.length > 1;
+  box.innerHTML = `
+    <div class="room-slides-track" id="about_track">
+      ${slidesHtml}
+    </div>
+    ${hasMultiple ? `
+      <button type="button" class="room-slider-btn prev" onclick="changeAboutSlide(-1, event)"><i class="fa-solid fa-chevron-left"></i></button>
+      <button type="button" class="room-slider-btn next" onclick="changeAboutSlide(1, event)"><i class="fa-solid fa-chevron-right"></i></button>
+      <div class="room-slider-dots" id="about_dots">
+        ${images.map((_, i) => `<span class="dot ${i === 0 ? 'active' : ''}" onclick="setAboutSlide(${i}, event)"></span>`).join('')}
+      </div>
+    ` : ''}
+  `;
+
+  restartAboutSliderTimer();
+}
+
+function restartAboutSliderTimer() {
+  if (aboutSliderTimer) clearInterval(aboutSliderTimer);
+  if (aboutSliderImages.length > 1) {
+    aboutSliderTimer = setInterval(() => changeAboutSlide(1), 6000);
+  }
+}
+
+function changeAboutSlide(dir, event) {
+  if (event) {
+    event.stopPropagation();
+    restartAboutSliderTimer(); // manual action resets the autoplay countdown
+  }
+  if (aboutSliderImages.length <= 1) return;
+  aboutSlideIndex = (aboutSlideIndex + dir + aboutSliderImages.length) % aboutSliderImages.length;
+  updateAboutSliderDOM();
+}
+
+function setAboutSlide(index, event) {
+  if (event) {
+    event.stopPropagation();
+    restartAboutSliderTimer();
+  }
+  aboutSlideIndex = index;
+  updateAboutSliderDOM();
+}
+
+function updateAboutSliderDOM() {
+  const track = document.getElementById('about_track');
+  const dots = document.getElementById('about_dots');
+  if (track) {
+    track.querySelectorAll('.room-img').forEach((img, i) => img.classList.toggle('active', i === aboutSlideIndex));
+  }
+  if (dots) {
+    dots.querySelectorAll('.dot').forEach((dot, i) => dot.classList.toggle('active', i === aboutSlideIndex));
   }
 }
 
@@ -711,10 +819,49 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeLightbox();
 });
 
+// 10. Parallax scrolling for hand-drawn decorations
+function initParallaxDecor() {
+  const decors = document.querySelectorAll('.decor[data-parallax]');
+  if (decors.length === 0) return;
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let ticking = false;
+
+  function update() {
+    ticking = false;
+    if (reduceMotion.matches) return;
+
+    const vhHalf = window.innerHeight / 2;
+    decors.forEach(el => {
+      const host = el.closest('section') || document.body;
+      const rect = host.getBoundingClientRect();
+      // Skip offscreen sections to keep scrolling cheap
+      if (rect.bottom < -200 || rect.top > window.innerHeight + 200) return;
+
+      const progress = rect.top + rect.height / 2 - vhHalf;
+      const speed = parseFloat(el.dataset.parallax) || 0;
+      const rot = el.dataset.rotate ? ` rotate(${el.dataset.rotate}deg)` : '';
+      el.style.transform = `translate3d(0, ${(progress * speed).toFixed(1)}px, 0)${rot}`;
+    });
+  }
+
+  function requestUpdate() {
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(update);
+    }
+  }
+
+  window.addEventListener('scroll', requestUpdate, { passive: true });
+  window.addEventListener('resize', requestUpdate);
+  update();
+}
+
 // Page Initialization
 async function initApp() {
   initDates();
   setupEventHandlers();
+  initParallaxDecor();
   await loadDynamicContent(); // Load content from db.json dynamically
 }
 
