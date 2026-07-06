@@ -440,7 +440,11 @@
           });
           const payResult = await res.json();
 
-          if (payResult.success) {
+          if (payResult.success && payResult.requires3DS && payResult.paymentUrl) {
+            // 3D 驗證：整頁跳轉到發卡銀行的驗證頁，完成後銀行會導回本頁 (?threeds=1)
+            btnPay.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 前往銀行 3D 驗證頁面...';
+            window.location.href = payResult.paymentUrl;
+          } else if (payResult.success) {
             renderBooking(payResult.booking);
           } else {
             payMsg.textContent = payResult.message || '付款失敗，請稍後再試。';
@@ -471,8 +475,39 @@
       window.location.href = `./?edit=${bookingId}#booking`;
     });
 
+    // Returning from the bank's 3DS page: confirm the final result with the
+    // backend (it re-queries TapPay), polling briefly to absorb notify latency.
+    async function verify3DSResult() {
+      document.querySelector('#loadingState p').textContent = '正在確認 3D 驗證付款結果，請稍候...';
+      for (let i = 0; i < 5; i++) {
+        try {
+          const res = await fetch('/api/payment/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bookingId: bookingId })
+          });
+          const result = await res.json();
+          if (result.success && result.booking &&
+              (result.booking.paymentStatus === 'Paid' || result.booking.paymentStatus === 'Completed')) {
+            renderBooking(result.booking);
+            return;
+          }
+        } catch (err) {
+          console.error('Error verifying 3DS result:', err);
+        }
+        await new Promise(r => setTimeout(r, 2000));
+      }
+      // Still unpaid after polling — show the payment form again with a hint
+      await loadBooking();
+      payMsg.textContent = '尚未收到 3D 驗證的付款結果。若您已完成驗證，請稍候重新整理本頁；若驗證失敗或中斷，請重新付款。';
+    }
+
     // Load on load
-    loadBooking();
+    if (urlParams.get('threeds') === '1' && bookingId) {
+      verify3DSResult();
+    } else {
+      loadBooking();
+    }
   </script>
 </body>
 </html>

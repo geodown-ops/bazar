@@ -124,6 +124,7 @@
 *   **付款方式依後台設定顯示**（後台「系統設定 → 付款方式設定」）：僅信用卡、僅銀行匯款（顯示 CMS「住宿守則與匯款」中的匯款帳號資訊，由管理員入帳後手動改為已付款），或同時開放（旅客可自行切換兩種方式）。僅匯款模式下後端會直接拒絕信用卡扣款請求。
 *   **安全收卡**：頁面載入 TapPay SDK 後，卡號/有效期/CVV 由 TapPay 安全欄位 (iframe) 直接處理，**卡號不經過民宿伺服器**。
 *   **扣款流程**：前端 `TPDirect.card.getPrime()` 取得一次性交易憑證 prime → 送至後端 `POST /api/payment/pay` → 後端呼叫 TapPay Pay by Prime API 實際扣款，成功後將訂單狀態更新為「已付款」並寫入交易紀錄（`rec_trade_id`、銀行交易編號、卡號末四碼）。
+*   **3D 驗證 (3D Secure)**：`use3DS` 開啟時（正式環境預設開啟），後端在扣款請求加上 `three_domain_secure` 與 `result_url`，旅客會被**整頁跳轉到發卡銀行的 3D 驗證頁**（sandbox 為 TapPay 模擬頁，OTP `1234567`）。驗證完成後銀行導回 `payment.html?threeds=1`，前端呼叫 `POST /api/payment/verify`，後端**回查 TapPay 交易紀錄 API**（不信任導回參數與 notify 內容）確認入帳後才把訂單改為已付款。TapPay 的伺服器通知則由 `POST /api/payment/notify` 接收（同樣以回查驗證），兩條路徑皆為冪等，不會重複寄信。
 *   後端 `GET /api/payment/config` 提供前端初始化 SDK 所需的 App ID / App Key（此為公開的 client key）與環境別。
 *   **取消並返回修改**：「取消此訂單，返回修改訂房資料」按鈕會將此筆待付款訂單標記為已取消（`PUT /api/bookings/:id/cancel`），並以 `?edit=訂單編號` 導回首頁訂房表單，**自動預填全部原訂單資料**（含加購套裝與數量）供旅客修改後重新送出。
 *   **付款成功通知信**：扣款成功後，若旅客有填寫 Email，系統會自動寄出含訂單明細、金額與交易編號的確認信（SMTP 設定見部署說明；未設定時自動略過）。
@@ -165,16 +166,23 @@ npm.cmd install
 ```json
 {
   "env": "sandbox",
+  "use3DS": true,
+  "baseUrl": "http://127.0.0.1.nip.io:3000",
   "appId": 12345,
   "appKey": "app_xxxxxxxx",
   "partnerKey": "partner_xxxxxxxx",
   "merchantId": "xxxxx_CTBC"
 }
 ```
-對應的環境變數為 `TAPPAY_ENV`、`TAPPAY_APP_ID`、`TAPPAY_APP_KEY`、`TAPPAY_PARTNER_KEY`、`TAPPAY_MERCHANT_ID`。
+對應的環境變數為 `TAPPAY_ENV`、`TAPPAY_USE_3DS`、`TAPPAY_BASE_URL`、`TAPPAY_APP_ID`、`TAPPAY_APP_KEY`、`TAPPAY_PARTNER_KEY`、`TAPPAY_MERCHANT_ID`。
 
-*   **sandbox 測試**：使用 TapPay Portal 測試區的金鑰，僅接受測試卡（如 `4242 4242 4242 4242`），不會實際請款。
-*   **正式上線 (production)**：需待 TapPay 帳號審核、與收單銀行簽約及商店審核通過後，於 TapPay Portal **正式區**另行取得 Partner Key、App ID / App Key 與 Merchant ID（與 sandbox 的金鑰不通用），將上述四個值換成正式版並把 `env` 改為 `"production"`，後端即自動改連 `prod.tappaysdk.com`，無需改動程式碼。
+*   **`use3DS`（3D 驗證）**：未設定時，`production` 預設**開啟**、`sandbox` 預設關閉。本帳號正式區所有收單商家皆為「3D 驗證」規格，正式環境請勿關閉。
+*   **`baseUrl`**：組 3D 驗證導回/通知網址用的公開網址。未設定時自動取自請求的 host。**TapPay 拒絕 `localhost`**（錯誤碼 627/628），本機測試 3DS 請用 `http://127.0.0.1.nip.io:3000`（公共 DNS 解析回本機）；`backend_notify_url` 一律強制為 https（本機測不到 notify 沒關係，導回後的 verify 回查會補上入帳狀態）。
+*   **sandbox 測試**：使用 TapPay Portal 測試區的金鑰，僅接受測試卡（如 `4242 4242 4242 4242`），不會實際請款；3D 驗證模擬頁 OTP 為 `1234567`。
+*   **正式上線 (production)**：TapPay 帳號審核與收單簽約已完成（Portal 正式區已有 5 組商家，全為 3D 驗證規格）。上線還需：
+    1.  `tappay.local.json` 改為 `"env": "production"`、填入正式 Merchant ID（如 `Honestdesign_00002`），App ID / App Key / Partner Key 兩環境共用（Portal「開發人員內容 → 應用程式」與「公司資訊」可查）。
+    2.  `baseUrl` 設為正式 https 網域（3D 驗證的導回網址必須是公開 https）。
+    3.  到 Portal「開發人員內容 → 系統設定 → 正式環境」把**主機固定對外 IP 加入「後台 IP 限制」白名單**（否則扣款 API 會被擋），並於「跳轉連結設定」加入導回網址。
 
 ### 3-1. 設定付款確認信 SMTP（選用）
 付款成功後要自動寄確認信給旅客，需在專案根目錄建立 `email.local.json`（已加入 `.gitignore`）：

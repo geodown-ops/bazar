@@ -23,9 +23,23 @@ const TAPPAY = {
   partnerKey: tappayLocal.partnerKey || process.env.TAPPAY_PARTNER_KEY || 'partner_6ID1DoDlaPrfHw6HBZsULfTYtDmWs0q0ZZGKMBpp4YICWBxgK97eK3RM',
   merchantId: tappayLocal.merchantId || process.env.TAPPAY_MERCHANT_ID || 'GlobalTesting_CTBC'
 };
+
+// 3D Secure (三域驗證): this TapPay account's production merchants are all
+// 3D-verification-only, so it defaults to ON in production and OFF in sandbox.
+// Override with "use3DS": true/false in tappay.local.json or TAPPAY_USE_3DS.
+const use3DSSetting = tappayLocal.use3DS !== undefined ? tappayLocal.use3DS : process.env.TAPPAY_USE_3DS;
+TAPPAY.use3DS = use3DSSetting !== undefined ? String(use3DSSetting) === 'true' : TAPPAY.env === 'production';
+
+// Public base URL used to build the 3DS redirect / notify URLs
+// (e.g. "https://booking.example.com"). Falls back to each request's own host.
+TAPPAY.baseUrl = String(tappayLocal.baseUrl || process.env.TAPPAY_BASE_URL || '').replace(/\/+$/, '');
+
 const TAPPAY_API_URL = TAPPAY.env === 'production'
   ? 'https://prod.tappaysdk.com/tpc/payment/pay-by-prime'
   : 'https://sandbox.tappaysdk.com/tpc/payment/pay-by-prime';
+const TAPPAY_QUERY_URL = TAPPAY.env === 'production'
+  ? 'https://prod.tappaysdk.com/tpc/transaction/query'
+  : 'https://sandbox.tappaysdk.com/tpc/transaction/query';
 
 // Email notifications (payment confirmation)
 // Key resolution order: email.local.json (gitignored) > environment variables.
@@ -459,6 +473,67 @@ app.get('/api/payment/config', (req, res) => {
   });
 });
 
+// Mark a booking as paid from a TapPay pay-by-prime result or trade record,
+// then send the confirmation mail. Idempotent — the 3DS notify and verify
+// paths can both land here for the same trade without double-sending.
+function markBookingPaid(db, index, tp) {
+  const booking = db.bookings[index];
+  if (booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Completed') {
+    return booking;
+  }
+  booking.paymentStatus = 'Paid';
+  booking.payment = {
+    gateway: 'TapPay',
+    env: TAPPAY.env,
+    recTradeId: tp.rec_trade_id || '',
+    bankTransactionId: tp.bank_transaction_id || '',
+    cardLastFour: (tp.card_info && tp.card_info.last_four) ||
+      (tp.partial_card_number ? String(tp.partial_card_number).slice(-4) : ''),
+    threeDS: !!tp.three_domain_secure || TAPPAY.use3DS,
+    paidAt: new Date().toISOString()
+  };
+  delete booking.payment3DS;
+  writeDb(db);
+  sendPaymentConfirmationEmail(booking); // fire-and-forget: never blocks the payment response
+  return booking;
+}
+
+// record_status in TapPay trade records: 0 = 銀行授權成功(AUTH)、1 = 已請款(OK)
+function isPaidRecord(record) {
+  return !!record && (record.record_status === 0 || record.record_status === 1);
+}
+
+// Re-query TapPay's record API for a booking's 3DS transaction and settle the
+// booking if the bank confirmed it. The notify body / redirect params are
+// never trusted on their own — this query is the single source of truth.
+async function settle3DSBooking(bookingId) {
+  const db = readDb();
+  const index = db.bookings.findIndex(b => b.id === bookingId);
+  if (index === -1) return null;
+  const booking = db.bookings[index];
+  if (booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Completed') {
+    return booking;
+  }
+
+  const filters = booking.payment3DS && booking.payment3DS.recTradeId
+    ? { rec_trade_id: booking.payment3DS.recTradeId }
+    : { order_number: booking.id };
+  const qRes = await fetch(TAPPAY_QUERY_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': TAPPAY.partnerKey
+    },
+    body: JSON.stringify({ partner_key: TAPPAY.partnerKey, filters })
+  });
+  const qResult = await qRes.json();
+  const records = Array.isArray(qResult.trade_records) ? qResult.trade_records : [];
+  records.sort((a, b) => (b.time || 0) - (a.time || 0));
+  const paidRecord = records.find(isPaidRecord);
+  if (!paidRecord) return booking;
+  return markBookingPaid(db, index, paidRecord);
+}
+
 // 3-1. Payment - TapPay Pay by Prime (real charge; replaces the old mock endpoint)
 app.post('/api/payment/pay', async (req, res) => {
   const { bookingId, prime } = req.body;
@@ -482,27 +557,43 @@ app.post('/api/payment/pay', async (req, res) => {
   }
 
   try {
+    const payload = {
+      prime,
+      partner_key: TAPPAY.partnerKey,
+      merchant_id: TAPPAY.merchantId,
+      amount: booking.totalPrice, // TWD: no x100 conversion needed
+      currency: 'TWD',
+      order_number: booking.id,
+      details: `芭扎民宿訂房 ${booking.checkIn}~${booking.checkOut}`.slice(0, 100),
+      cardholder: {
+        phone_number: booking.phone,
+        name: booking.name,
+        email: booking.email || 'guest@bazar.idv.tw'
+      },
+      remember: false
+    };
+
+    if (TAPPAY.use3DS) {
+      const baseUrl = TAPPAY.baseUrl ||
+        `${req.headers['x-forwarded-proto'] || req.protocol}://${req.get('host')}`;
+      // TapPay rejects non-https notify URLs (error 627). Production runs
+      // behind https anyway; on plain-http local tests the notify simply
+      // never arrives and the verify endpoint settles the booking instead.
+      const notifyBase = baseUrl.replace(/^http:\/\//, 'https://');
+      payload.three_domain_secure = true;
+      payload.result_url = {
+        frontend_redirect_url: `${baseUrl}/bzzar/payment.html?id=${encodeURIComponent(booking.id)}&threeds=1`,
+        backend_notify_url: `${notifyBase}/api/payment/notify`
+      };
+    }
+
     const tpRes = await fetch(TAPPAY_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': TAPPAY.partnerKey
       },
-      body: JSON.stringify({
-        prime,
-        partner_key: TAPPAY.partnerKey,
-        merchant_id: TAPPAY.merchantId,
-        amount: booking.totalPrice, // TWD: no x100 conversion needed
-        currency: 'TWD',
-        order_number: booking.id,
-        details: `芭扎民宿訂房 ${booking.checkIn}~${booking.checkOut}`.slice(0, 100),
-        cardholder: {
-          phone_number: booking.phone,
-          name: booking.name,
-          email: booking.email || 'guest@bazar.idv.tw'
-        },
-        remember: false
-      })
+      body: JSON.stringify(payload)
     });
     const tpResult = await tpRes.json();
 
@@ -514,28 +605,71 @@ app.post('/api/payment/pay', async (req, res) => {
       });
     }
 
-    // Charge succeeded — persist the payment record
+    // 3DS flow: the charge is not final yet — TapPay returns the bank's
+    // verification page URL and the result arrives later via notify/verify.
+    if (TAPPAY.use3DS && tpResult.payment_url) {
+      const fresh = readDb();
+      const index = fresh.bookings.findIndex(b => b.id === bookingId);
+      if (index !== -1) {
+        fresh.bookings[index].payment3DS = {
+          recTradeId: tpResult.rec_trade_id || '',
+          initiatedAt: new Date().toISOString()
+        };
+        writeDb(fresh);
+      }
+      return res.json({
+        success: true,
+        requires3DS: true,
+        paymentUrl: tpResult.payment_url,
+        message: '請前往銀行頁面完成 3D 驗證。'
+      });
+    }
+
+    // Direct (non-3DS) charge succeeded — persist the payment record
     const fresh = readDb();
     const index = fresh.bookings.findIndex(b => b.id === bookingId);
     if (index !== -1) {
-      fresh.bookings[index].paymentStatus = 'Paid';
-      fresh.bookings[index].payment = {
-        gateway: 'TapPay',
-        env: TAPPAY.env,
-        recTradeId: tpResult.rec_trade_id,
-        bankTransactionId: tpResult.bank_transaction_id,
-        cardLastFour: tpResult.card_info ? tpResult.card_info.last_four : '',
-        paidAt: new Date().toISOString()
-      };
-      writeDb(fresh);
-      sendPaymentConfirmationEmail(fresh.bookings[index]); // fire-and-forget: never blocks the payment response
-      return res.json({ success: true, message: '付款成功！', booking: fresh.bookings[index] });
+      const paid = markBookingPaid(fresh, index, tpResult);
+      return res.json({ success: true, message: '付款成功！', booking: paid });
     }
 
     res.json({ success: true, message: '付款成功！' });
   } catch (err) {
     console.error('TapPay request error:', err);
     res.status(502).json({ success: false, message: '金流服務連線失敗，請稍後再試。' });
+  }
+});
+
+// 3-2. Payment - TapPay backend notify (server-to-server result of a 3DS
+// transaction). Always acks with 200 so TapPay stops retrying; the booking is
+// only settled after settle3DSBooking re-queries the record API.
+app.post('/api/payment/notify', async (req, res) => {
+  const orderNumber = (req.body && req.body.order_number) || '';
+  console.log('TapPay notify received:', orderNumber, 'status:', req.body && req.body.status);
+  try {
+    if (orderNumber) await settle3DSBooking(orderNumber);
+  } catch (err) {
+    console.error('TapPay notify handling error:', err);
+  }
+  res.json({ status: 0 });
+});
+
+// 3-3. Payment - the payment page calls this after the bank redirects the
+// guest back (?threeds=1) to confirm the final result of the 3DS transaction.
+app.post('/api/payment/verify', async (req, res) => {
+  const { bookingId } = req.body;
+  if (!bookingId) {
+    return res.status(400).json({ success: false, message: '缺少訂單編號。' });
+  }
+  try {
+    const booking = await settle3DSBooking(bookingId);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: '找不到訂單。' });
+    }
+    res.json({ success: true, booking });
+  } catch (err) {
+    console.error('TapPay verify error:', err);
+    res.status(502).json({ success: false, message: '金流查詢失敗，請稍後再試。' });
   }
 });
 
