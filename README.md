@@ -1,6 +1,6 @@
 # 🌴 小琉球芭扎民宿 (bazar花園) 官方網站與訂房管理系統
 
-這是一個為小琉球特色貨櫃民宿「芭扎民宿 (bazar花園)」量身打造的官方網站系統。本系統採用全響應式前端介面，整合了**即時套裝行程房價估價器**、**模擬金流支付通道**以及**管理員後台控制面板**，並使用輕量化且易於移植的 Node.js 後端與本地 JSON 資料庫。
+這是一個為小琉球特色貨櫃民宿「芭扎民宿 (bazar花園)」量身打造的官方網站系統。本系統採用全響應式前端介面，整合了**即時套裝行程房價估價器**、**TapPay 信用卡金流 (Direct Pay)** 以及**管理員後台控制面板**，並使用輕量化且易於移植的 Node.js 後端與本地 JSON 資料庫。
 
 ---
 
@@ -14,7 +14,9 @@
     *   **Logic**: 原生 JavaScript (ES6+)，處理無刷新 AJAX 異步請求、即時房價/套裝金額試算、Hero Slider 輪播、及燈箱 Lightbox 圖片放大。
 *   **後端技術 (Backend)**:
     *   **Engine**: Node.js 運行環境。
-    *   **Framework**: Express.js，實作 RESTful 預約、金流模擬與後台管理 API。
+    *   **Framework**: Express.js，實作 RESTful 預約、TapPay Pay by Prime 金流與後台管理 API。
+*   **金流 (Payment Gateway)**:
+    *   **TapPay Direct Pay**：前端以 TapPay SDK 安全欄位 (iframe) 收卡號並換取 prime，卡號不經過民宿伺服器；後端以 Pay by Prime API 完成實際扣款。
 *   **資料庫 (Database)**:
     *   **Storage**: 本地 JSON 檔案型資料庫 (`db.json`)，避免了 SQLite3 等二進位資料庫在 Windows 環境下安裝編譯失敗的問題，具備極佳的移植性與備份便利性。
 
@@ -93,6 +95,7 @@
 | 欄位名稱 (Field) | 資料類型 (Type) | 說明 (Description) | 預設值 (Default) |
 | :--- | :--- | :--- | :--- |
 | `adminPassword` | `String` | 後台管理員登入密碼。 | `"bazar888"` |
+| `paymentMethods` | `String` | 付款頁開放的付款方式 (`card` 僅信用卡 \| `transfer` 僅匯款 \| `both` 同時開放)。 | `"card"` |
 
 ---
 
@@ -115,11 +118,19 @@
 *   **生態寫真畫廊 (Gallery)**：展示精緻房型、私人游泳池、質感衛浴與小琉球當地生態，支援點擊燈箱放大功能。
 *   **聯絡我們 (Contact)**：顯示民宿主人施勇銘聯絡電話 (0975-080-788)、地址與 Google 地圖嵌入。
 
-### 2. 模擬金流支付頁 (`/bzzar/payment.html`)
+### 2. 支付頁 (`/bzzar/payment.html`) — TapPay 信用卡 / 銀行匯款
 *   旅客送出預約表單後自動導向此頁面，並攜帶訂單 ID 參數（例如 `?id=BZxxxxxx`）。
 *   載入並呈現本筆訂單的所有住房、套裝、總金額與付款狀態。
-*   提供「綠界金流 (ECPay)」與「LINE Pay」模擬通道切換。
-*   點選「模擬金流支付」後，前端會發送 API 通知後端伺服器，自動將資料庫中的狀態更新為「已付款」，並切換顯示付款成功畫面。
+*   **付款方式依後台設定顯示**（後台「系統設定 → 付款方式設定」）：僅信用卡、僅銀行匯款（顯示 CMS「住宿守則與匯款」中的匯款帳號資訊，由管理員入帳後手動改為已付款），或同時開放（旅客可自行切換兩種方式）。僅匯款模式下後端會直接拒絕信用卡扣款請求。
+*   **安全收卡**：頁面載入 TapPay SDK 後，卡號/有效期/CVV 由 TapPay 安全欄位 (iframe) 直接處理，**卡號不經過民宿伺服器**。
+*   **扣款流程**：前端 `TPDirect.card.getPrime()` 取得一次性交易憑證 prime → 送至後端 `POST /api/payment/pay` → 後端呼叫 TapPay Pay by Prime API 實際扣款，成功後將訂單狀態更新為「已付款」並寫入交易紀錄（`rec_trade_id`、銀行交易編號、卡號末四碼）。
+*   後端 `GET /api/payment/config` 提供前端初始化 SDK 所需的 App ID / App Key（此為公開的 client key）與環境別。
+*   **取消並返回修改**：「取消此訂單，返回修改訂房資料」按鈕會將此筆待付款訂單標記為已取消（`PUT /api/bookings/:id/cancel`），並以 `?edit=訂單編號` 導回首頁訂房表單，**自動預填全部原訂單資料**（含加購套裝與數量）供旅客修改後重新送出。
+*   **付款成功通知信**：扣款成功後，若旅客有填寫 Email，系統會自動寄出含訂單明細、金額與交易編號的確認信（SMTP 設定見部署說明；未設定時自動略過）。
+
+### 2-1. 查詢訂房 (`/bzzar/#lookup`)
+*   前台導覽列新增「查詢訂房」，旅客輸入訂房時填寫的**聯絡電話**（可加填訂單編號縮小範圍）即可查詢自己的訂單（`POST /api/bookings/lookup`）。
+*   查詢結果以卡片呈現房型、日期、人數、總金額與付款狀態；**待付款**的訂單提供「前往付款」按鈕直達信用卡付款頁。
 
 ### 3. 管理員後台控制面板 (`/bzzar/admin.html`) - [訪問連結](http://localhost:3000/bzzar/admin.html)
 *   **安全登入彈窗**：開啟時自動彈出密碼輸入框（預設密碼為 `bazar888`），驗證成功後將 token 保存於瀏覽器 `localStorage` 中。
@@ -129,7 +140,10 @@
     *   可以下拉選單直接變更訂單狀態（待付款、已付款、已完成、已取消），系統以 AJAX 即時寫入資料庫。
     *   支援「查看明細」彈窗以及「刪除訂單」功能。
 *   **數據分析統計圖表**：以原生 CSS/SVG 繪製動態長條圖，呈現「房型預訂熱門次數」與「加購套裝行程熱銷榜」。
-*   **密碼設定管理**：供民宿主人在此處修改後台的管理密碼。
+*   **系統設定**：
+    *   **付款方式設定**：切換付款頁開放「僅信用卡」「僅銀行匯款」或「同時開放」，儲存後付款頁立即生效。
+    *   **密碼設定管理**：供民宿主人在此處修改後台的管理密碼。
+*   後台功能選單以橫向頁籤列呈現於統計卡下方、內容區上方。
 
 ---
 
@@ -144,7 +158,39 @@
 npm.cmd install
 ```
 
-### 3. 啟動 Web 服務
+### 3. 設定 TapPay 金流金鑰
+後端讀取金鑰的優先順序為：**`tappay.local.json`（已加入 `.gitignore`，不會進版控）→ 環境變數 → TapPay 公用 sandbox 測試金鑰**。
+
+在專案根目錄建立 `tappay.local.json`：
+```json
+{
+  "env": "sandbox",
+  "appId": 12345,
+  "appKey": "app_xxxxxxxx",
+  "partnerKey": "partner_xxxxxxxx",
+  "merchantId": "xxxxx_CTBC"
+}
+```
+對應的環境變數為 `TAPPAY_ENV`、`TAPPAY_APP_ID`、`TAPPAY_APP_KEY`、`TAPPAY_PARTNER_KEY`、`TAPPAY_MERCHANT_ID`。
+
+*   **sandbox 測試**：使用 TapPay Portal 測試區的金鑰，僅接受測試卡（如 `4242 4242 4242 4242`），不會實際請款。
+*   **正式上線 (production)**：需待 TapPay 帳號審核、與收單銀行簽約及商店審核通過後，於 TapPay Portal **正式區**另行取得 Partner Key、App ID / App Key 與 Merchant ID（與 sandbox 的金鑰不通用），將上述四個值換成正式版並把 `env` 改為 `"production"`，後端即自動改連 `prod.tappaysdk.com`，無需改動程式碼。
+
+### 3-1. 設定付款確認信 SMTP（選用）
+付款成功後要自動寄確認信給旅客，需在專案根目錄建立 `email.local.json`（已加入 `.gitignore`）：
+```json
+{
+  "host": "smtp.gmail.com",
+  "port": 465,
+  "secure": true,
+  "user": "your@gmail.com",
+  "pass": "應用程式密碼",
+  "from": "\"bazar花園\" <your@gmail.com>"
+}
+```
+對應環境變數：`SMTP_HOST`、`SMTP_PORT`、`SMTP_SECURE`、`SMTP_USER`、`SMTP_PASS`、`MAIL_FROM`。未設定時系統會略過寄信並在伺服器 log 記錄，不影響付款流程。
+
+### 4. 啟動 Web 服務
 執行以下指令啟動伺服器：
 ```powershell
 node server.js
@@ -152,7 +198,7 @@ node server.js
 伺服器成功啟動後，將會在終端機輸出：
 `Bazar Garden B&B server is running on http://localhost:3000`
 
-### 4. 本地訪問入口
+### 5. 本地訪問入口
 *   **前台官網與估價預約**：[http://localhost:3000/bzzar/](http://localhost:3000/bzzar/)
 *   **管理員後台**：[http://localhost:3000/bzzar/admin.html](http://localhost:3000/bzzar/admin.html) *(預設密碼為 `bazar888`)*
 

@@ -27,6 +27,103 @@ const TAPPAY_API_URL = TAPPAY.env === 'production'
   ? 'https://prod.tappaysdk.com/tpc/payment/pay-by-prime'
   : 'https://sandbox.tappaysdk.com/tpc/payment/pay-by-prime';
 
+// Email notifications (payment confirmation)
+// Key resolution order: email.local.json (gitignored) > environment variables.
+// When neither is configured, emails are skipped and logged.
+const nodemailer = require('nodemailer');
+let emailLocal = {};
+try {
+  emailLocal = require('./email.local.json');
+  console.log('Email: loaded SMTP settings from email.local.json');
+} catch (e) { /* file not present — fall back to env vars */ }
+
+const MAIL = {
+  host: emailLocal.host || process.env.SMTP_HOST || '',
+  port: parseInt(emailLocal.port || process.env.SMTP_PORT, 10) || 465,
+  secure: (emailLocal.secure !== undefined) ? !!emailLocal.secure : (process.env.SMTP_SECURE !== 'false'),
+  user: emailLocal.user || process.env.SMTP_USER || '',
+  pass: emailLocal.pass || process.env.SMTP_PASS || '',
+  from: emailLocal.from || process.env.MAIL_FROM || ''
+};
+
+const mailTransporter = MAIL.host && MAIL.user
+  ? nodemailer.createTransport({
+      host: MAIL.host,
+      port: MAIL.port,
+      secure: MAIL.secure,
+      auth: { user: MAIL.user, pass: MAIL.pass }
+    })
+  : null;
+
+const roomDisplayNames = {
+  double: '翠竹雙人房',
+  quad: '鄉村 / 自然 / 樸石四人房',
+  pool_quad: '弦木 / 澄花泳池四人房',
+  charter: '10 人小包棟'
+};
+
+function sendPaymentConfirmationEmail(booking) {
+  if (!booking.email) {
+    console.log(`Email: booking ${booking.id} has no guest email, skipping confirmation mail.`);
+    return;
+  }
+  if (!mailTransporter) {
+    console.log('Email: SMTP not configured (email.local.json / SMTP_* env), skipping confirmation mail.');
+    return;
+  }
+
+  const db = readDb();
+  const roomsConfig = (db.siteConfig && db.siteConfig.rooms) || [];
+  const roomConf = roomsConfig.find(r => r.id === booking.roomType);
+  const roomName = (roomConf && roomConf.name) || roomDisplayNames[booking.roomType] || booking.roomType;
+
+  const packageRows = (booking.packageDetails || []).map(p =>
+    `<tr><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${p.name}</td>` +
+    `<td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${p.desc}</td>` +
+    `<td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;text-align:right;">NT$ ${p.cost.toLocaleString()}</td></tr>`
+  ).join('') || '<tr><td colspan="3" style="padding:6px 10px;color:#6b7280;">無加購項目</td></tr>';
+
+  const html = `
+  <div style="font-family:'Microsoft JhengHei',Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
+    <div style="background:linear-gradient(135deg,#3a8a50,#1e4d2b);border-radius:12px 12px 0 0;padding:24px;text-align:center;color:#ffffff;">
+      <h1 style="margin:0;font-size:22px;">🌴 bazar花園 芭扎民宿</h1>
+      <p style="margin:8px 0 0;font-size:14px;opacity:.9;">訂房付款成功確認信</p>
+    </div>
+    <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:24px;">
+      <p>${booking.name} 您好：</p>
+      <p>我們已成功收到您的款項，房間已為您保留完成！民宿主人將會儘快與您電話聯繫確認交通船班資訊。</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0;">
+        <tr><td style="padding:6px 10px;color:#6b7280;width:120px;">訂單編號</td><td style="padding:6px 10px;font-weight:bold;">${booking.id}</td></tr>
+        <tr><td style="padding:6px 10px;color:#6b7280;">房型</td><td style="padding:6px 10px;">${roomName}（${booking.nights} 晚）</td></tr>
+        <tr><td style="padding:6px 10px;color:#6b7280;">入住期間</td><td style="padding:6px 10px;">${booking.checkIn} ~ ${booking.checkOut}</td></tr>
+        <tr><td style="padding:6px 10px;color:#6b7280;">入住人數</td><td style="padding:6px 10px;">${booking.adults} 大 ${booking.kids} 小</td></tr>
+      </table>
+      <h3 style="font-size:15px;margin:16px 0 8px;">加購套裝行程</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">${packageRows}</table>
+      <p style="font-size:16px;font-weight:bold;text-align:right;margin:16px 0;color:#f58f29;">
+        已付總金額：NT$ ${booking.totalPrice.toLocaleString()}
+      </p>
+      <p style="font-size:12px;color:#6b7280;">付款方式：信用卡（末四碼 ${booking.payment ? booking.payment.cardLastFour : ''}）｜交易編號：${booking.payment ? booking.payment.recTradeId : ''}</p>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0;">
+      <p style="font-size:12px;color:#6b7280;">
+        芭扎民宿 bazar花園｜屏東縣琉球鄉｜電話：0975-080-788<br>
+        此為系統自動發送的信件，請勿直接回覆。
+      </p>
+    </div>
+  </div>`;
+
+  mailTransporter.sendMail({
+    from: MAIL.from || MAIL.user,
+    to: booking.email,
+    subject: `【bazar花園】訂房付款成功確認 - 訂單 ${booking.id}`,
+    html
+  }).then(info => {
+    console.log(`Email: confirmation sent to ${booking.email} for ${booking.id} (${info.messageId})`);
+  }).catch(err => {
+    console.error(`Email: failed to send confirmation for ${booking.id}:`, err.message);
+  });
+}
+
 // Configure Multer for local uploads
 const UPLOADS_DIR = path.join(__dirname, 'public', 'assets', 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -308,9 +405,58 @@ app.get('/api/bookings/:id', (req, res) => {
   res.json({ success: true, booking });
 });
 
+// 2-1. Cancel a pending booking (guest returns to the form to re-edit)
+app.put('/api/bookings/:id/cancel', (req, res) => {
+  const db = readDb();
+  const index = db.bookings.findIndex(b => b.id === req.params.id);
+  if (index === -1) {
+    return res.status(404).json({ success: false, message: '找不到此訂單。' });
+  }
+  const booking = db.bookings[index];
+  if (booking.paymentStatus !== 'Pending') {
+    return res.status(400).json({ success: false, message: '此訂單已付款或已取消，無法取消。' });
+  }
+  booking.paymentStatus = 'Cancelled';
+  writeDb(db);
+  res.json({ success: true, booking });
+});
+
+// 2-2. Guest booking lookup by phone (booking id optional to narrow down)
+app.post('/api/bookings/lookup', (req, res) => {
+  const { phone, bookingId } = req.body;
+  if (!phone || String(phone).trim().length < 4) {
+    return res.status(400).json({ success: false, message: '請輸入訂房時填寫的聯絡電話。' });
+  }
+
+  const db = readDb();
+  const normalize = s => String(s || '').replace(/[\s-]/g, '');
+  let matches = db.bookings.filter(b => normalize(b.phone) === normalize(phone));
+  if (bookingId && String(bookingId).trim()) {
+    const idQuery = String(bookingId).trim().toUpperCase();
+    matches = matches.filter(b => b.id.toUpperCase() === idQuery);
+  }
+  matches.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  res.json({ success: true, bookings: matches });
+});
+
+// Payment methods setting: 'card' (credit card only) | 'transfer' (bank transfer only) | 'both'
+function getPaymentMethods(db) {
+  const m = db.settings && db.settings.paymentMethods;
+  return (m === 'transfer' || m === 'both') ? m : 'card';
+}
+
 // 3. Payment - TapPay SDK config for the frontend (app key is a public client key)
 app.get('/api/payment/config', (req, res) => {
-  res.json({ success: true, appId: TAPPAY.appId, appKey: TAPPAY.appKey, env: TAPPAY.env });
+  const db = readDb();
+  res.json({
+    success: true,
+    appId: TAPPAY.appId,
+    appKey: TAPPAY.appKey,
+    env: TAPPAY.env,
+    methods: getPaymentMethods(db),
+    transferInfo: (db.siteConfig && db.siteConfig.rules && db.siteConfig.rules.payment) || ''
+  });
 });
 
 // 3-1. Payment - TapPay Pay by Prime (real charge; replaces the old mock endpoint)
@@ -321,6 +467,9 @@ app.post('/api/payment/pay', async (req, res) => {
   }
 
   const db = readDb();
+  if (getPaymentMethods(db) === 'transfer') {
+    return res.status(403).json({ success: false, message: '目前僅開放銀行匯款，未開放信用卡付款。' });
+  }
   const booking = db.bookings.find(b => b.id === bookingId);
   if (!booking) {
     return res.status(404).json({ success: false, message: '找不到訂單。' });
@@ -379,6 +528,7 @@ app.post('/api/payment/pay', async (req, res) => {
         paidAt: new Date().toISOString()
       };
       writeDb(fresh);
+      sendPaymentConfirmationEmail(fresh.bookings[index]); // fire-and-forget: never blocks the payment response
       return res.json({ success: true, message: '付款成功！', booking: fresh.bookings[index] });
     }
 
@@ -506,6 +656,19 @@ app.put('/api/admin/settings/password', requireAdmin, (req, res) => {
   db.settings.adminPassword = newPassword;
   writeDb(db);
   res.json({ success: true, message: '管理密碼修改成功！' });
+});
+
+// 9-1. Admin API - Update Payment Methods
+app.put('/api/admin/settings/payment-methods', requireAdmin, (req, res) => {
+  const { method } = req.body;
+  if (!['card', 'transfer', 'both'].includes(method)) {
+    return res.status(400).json({ success: false, message: '付款方式設定值不正確。' });
+  }
+
+  const db = readDb();
+  db.settings.paymentMethods = method;
+  writeDb(db);
+  res.json({ success: true, message: '付款方式設定已更新。', method });
 });
 
 // 10. Front-end API - Get Site Configuration

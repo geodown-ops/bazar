@@ -100,6 +100,7 @@
           <li><a href="#booking">套裝估價</a></li>
           <li><a href="#gallery">生態寫真</a></li>
           <li><a href="#rules">住宿需知</a></li>
+          <li><a href="#lookup">查詢訂房</a></li>
           <li><a href="#contact">聯絡我們</a></li>
           <li><a href="#booking" class="btn-book-nav">立即訂房</a></li>
         </ul>
@@ -590,6 +591,36 @@
             <!-- Dynamic payment info -->
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Booking Lookup Section -->
+  <section id="lookup" style="background-color: #fafdfb;">
+    <div class="container">
+      <div class="section-header">
+        <p class="section-subtitle">MY BOOKING</p>
+        <h2 class="section-title">查詢訂房</h2>
+        <div class="section-divider"></div>
+      </div>
+
+      <div class="booking-form-box" style="max-width: 680px; margin: 0 auto; padding: 32px;">
+        <p style="font-size: 14px; color: var(--text-light); margin-bottom: 20px;">
+          <i class="fa-solid fa-magnifying-glass"></i> 輸入訂房時填寫的<strong>聯絡電話</strong>即可查詢您的訂單；若有多筆訂單，可加填訂單編號縮小範圍。
+        </p>
+        <div class="form-group-row">
+          <div class="form-group">
+            <label for="lookupPhone">聯絡電話 *</label>
+            <input type="tel" id="lookupPhone" placeholder="例如：0975080788">
+          </div>
+          <div class="form-group">
+            <label for="lookupId">訂單編號 (選填)</label>
+            <input type="text" id="lookupId" placeholder="例如：BZ12345678">
+          </div>
+        </div>
+        <button type="button" class="btn-primary" id="btnLookup" style="width: 100%;">查詢我的訂房</button>
+        <p id="lookupMsg" style="margin-top: 12px; font-size: 14px; font-weight: 600; color: #dc2626;"></p>
+        <div id="lookupResults" style="margin-top: 20px; display: flex; flex-direction: column; gap: 14px;"></div>
       </div>
     </div>
   </section>

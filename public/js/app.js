@@ -887,12 +887,156 @@ function initParallaxDecor() {
   update();
 }
 
+// 11. Booking lookup (查詢訂房)
+const btnLookup = document.getElementById('btnLookup');
+const lookupResults = document.getElementById('lookupResults');
+const lookupMsg = document.getElementById('lookupMsg');
+
+const statusLabels = {
+  Pending: { text: '待付款', cls: 'pending' },
+  Paid: { text: '已付款', cls: 'paid' },
+  Completed: { text: '已完成', cls: 'completed' },
+  Cancelled: { text: '已取消', cls: 'cancelled' }
+};
+
+async function lookupBookings() {
+  const phone = document.getElementById('lookupPhone').value.trim();
+  const bookingId = document.getElementById('lookupId').value.trim();
+  lookupMsg.textContent = '';
+  lookupResults.innerHTML = '';
+
+  if (!phone) {
+    lookupMsg.textContent = '請輸入訂房時填寫的聯絡電話。';
+    return;
+  }
+
+  btnLookup.disabled = true;
+  btnLookup.textContent = '查詢中...';
+
+  try {
+    const res = await fetch('/api/bookings/lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, bookingId })
+    });
+    const result = await res.json();
+
+    if (!result.success) {
+      lookupMsg.textContent = result.message || '查詢失敗，請稍後再試。';
+      return;
+    }
+    if (result.bookings.length === 0) {
+      lookupMsg.textContent = '查無符合的訂單，請確認電話或訂單編號是否正確。';
+      return;
+    }
+
+    result.bookings.forEach(b => {
+      const status = statusLabels[b.paymentStatus] || { text: b.paymentStatus, cls: 'pending' };
+      const roomName = (roomRates[b.roomType] && roomRates[b.roomType].name) || b.roomType;
+      const card = document.createElement('div');
+      card.style.cssText = 'border: 1px solid var(--border-color); border-radius: 12px; padding: 16px 18px; background: #ffffff;';
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+          <span style="font-family: monospace; font-weight: 700; color: var(--secondary-color);">${b.id}</span>
+          <span class="status-badge ${status.cls}">${status.text}</span>
+        </div>
+        <div style="font-size: 14px; color: var(--text-dark); line-height: 1.8;">
+          ${roomName}（${b.nights} 晚）｜${b.checkIn} ~ ${b.checkOut}｜${b.adults} 大 ${b.kids} 小<br>
+          總金額 <strong style="color: var(--accent-color);">NT$ ${b.totalPrice.toLocaleString()}</strong>
+        </div>
+        ${b.paymentStatus === 'Pending' ? `
+        <div style="margin-top: 12px;">
+          <a href="payment.html?id=${b.id}" class="btn-primary" style="display: inline-block; padding: 8px 20px; font-size: 14px;">
+            <i class="fa-solid fa-credit-card"></i> 前往付款
+          </a>
+        </div>` : ''}
+      `;
+      lookupResults.appendChild(card);
+    });
+  } catch (err) {
+    console.error('Error looking up bookings:', err);
+    lookupMsg.textContent = '伺服器連線錯誤，請稍後再試。';
+  } finally {
+    btnLookup.disabled = false;
+    btnLookup.textContent = '查詢我的訂房';
+  }
+}
+
+btnLookup.addEventListener('click', lookupBookings);
+document.getElementById('lookupId').addEventListener('keydown', e => { if (e.key === 'Enter') lookupBookings(); });
+document.getElementById('lookupPhone').addEventListener('keydown', e => { if (e.key === 'Enter') lookupBookings(); });
+
+// 12. Re-edit flow: ?edit=BZxxx pre-fills the form from an existing booking
+// Count fields in the stored packages object → qty input ids in the form
+const pkgCountFieldMap = {
+  ferry: { ferryAdultCount: 'ferry_adult_qty', ferryKidCount: 'ferry_kid_qty' },
+  scooter: { scooterCount: 'scooter_qty', scooterDays: 'scooter_days' },
+  snorkeling: { snorkelingCount: 'snorkeling_qty' },
+  diving: { divingCount: 'diving_qty' },
+  sup: { supCount: 'sup_qty' },
+  kayakNormal: { kayakNormalCount: 'kayakNormal_qty' },
+  kayakClear: { kayakClearCount: 'kayakClear_qty' },
+  bbq: { bbqAdultCount: 'bbq_adult_qty', bbqKidCount: 'bbq_kid_qty' },
+  deer: { deerAdultCount: 'deer_adult_qty', deerKidCount: 'deer_kid_qty' },
+  aquarium: { aquariumAdultCount: 'aquarium_adult_qty', aquariumKidCount: 'aquarium_kid_qty' },
+  glassBoat: { glassBoatAdultCount: 'glassBoat_adult_qty', glassBoatKidCount: 'glassBoat_kid_qty' }
+};
+
+async function prefillFromBooking() {
+  const editId = new URLSearchParams(window.location.search).get('edit');
+  if (!editId) return;
+
+  try {
+    const res = await fetch(`/api/bookings/${editId}`);
+    const result = await res.json();
+    if (!result.success || !result.booking) return;
+    const b = result.booking;
+
+    document.getElementById('name').value = b.name;
+    document.getElementById('phone').value = b.phone;
+    document.getElementById('email').value = b.email || '';
+    document.getElementById('note').value = b.note && b.note !== '無' ? b.note : '';
+    if (roomRates[b.roomType]) roomTypeSelect.value = b.roomType;
+    checkInInput.value = b.checkIn;
+    checkOutInput.value = b.checkOut;
+    adultsInput.value = b.adults;
+    kidsInput.value = b.kids;
+    isSummerCheckbox.checked = !!b.isSummer;
+    isHolidayPackageCheckbox.checked = !!b.isHolidayPackage;
+
+    const stored = b.packages || {};
+    Object.keys(pkgs).forEach(key => {
+      const p = pkgs[key];
+      p.chk.checked = !!stored[key];
+      if (p.chk.checked) {
+        if (p.card) p.card.classList.add('selected');
+        if (p.qtyBox) p.qtyBox.style.display = 'flex';
+        const countMap = pkgCountFieldMap[key] || {};
+        Object.keys(countMap).forEach(field => {
+          if (stored[field] !== undefined) {
+            document.getElementById(countMap[field]).value = stored[field];
+          }
+        });
+      } else {
+        if (p.card) p.card.classList.remove('selected');
+        if (p.qtyBox) p.qtyBox.style.display = 'none';
+      }
+    });
+
+    calculateClientPrice();
+    document.getElementById('booking').scrollIntoView({ behavior: 'smooth' });
+  } catch (err) {
+    console.error('Error pre-filling booking for edit:', err);
+  }
+}
+
 // Page Initialization
 async function initApp() {
   initDates();
   setupEventHandlers();
   initParallaxDecor();
   await loadDynamicContent(); // Load content from db.json dynamically
+  await prefillFromBooking(); // ?edit=BZxxx → re-edit an existing booking
 }
 
 initApp();

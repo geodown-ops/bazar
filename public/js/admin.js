@@ -94,6 +94,8 @@ function switchTab(tabName) {
   } else if (tabName === 'cms') {
     loadCmsData();
     switchCmsSubTab(currentCmsSubTab || 'rooms');
+  } else if (tabName === 'settings') {
+    loadPaymentMethods();
   }
 }
 
@@ -408,6 +410,53 @@ async function updateAdminPassword() {
 function showPasswordMsg(text, color) {
   passwordMsg.textContent = text;
   passwordMsg.style.color = color;
+}
+
+// 11-1. Payment Methods Setting
+async function loadPaymentMethods() {
+  try {
+    const res = await fetch('/api/payment/config');
+    const result = await res.json();
+    if (result.success) {
+      const radio = document.querySelector(`input[name="paymentMethod"][value="${result.methods}"]`);
+      if (radio) radio.checked = true;
+    }
+  } catch (err) {
+    console.error('Error loading payment methods:', err);
+  }
+}
+
+async function savePaymentMethods() {
+  const msg = document.getElementById('paymentMethodsMsg');
+  const selected = document.querySelector('input[name="paymentMethod"]:checked');
+  if (!selected) {
+    msg.textContent = '請先選擇一種付款方式設定。';
+    msg.style.color = '#dc2626';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/settings/payment-methods', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ method: selected.value })
+    });
+    const result = await res.json();
+    if (result.success) {
+      msg.textContent = '付款方式設定已更新，付款頁將立即生效。';
+      msg.style.color = '#10b981';
+    } else {
+      msg.textContent = `儲存失敗: ${result.message}`;
+      msg.style.color = '#dc2626';
+    }
+  } catch (err) {
+    console.error('Error saving payment methods:', err);
+    msg.textContent = '伺服器連線錯誤！';
+    msg.style.color = '#dc2626';
+  }
 }
 
 // ==========================================

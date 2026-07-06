@@ -49,6 +49,25 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
+
+    /* Payment method switch buttons (shown when card + transfer are both enabled) */
+    .method-btn {
+      flex: 1;
+      padding: 12px;
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-light);
+      cursor: pointer;
+    }
+
+    .method-btn.active {
+      background: #f1f6f2;
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
   </style>
   <script src="https://js.tappaysdk.com/sdk/tpdirect/v5.24.0"></script>
 </head>
@@ -64,7 +83,10 @@
 
       <!-- Main Payment Details State -->
       <div id="paymentDetailsState" style="display: none;">
-        <h2 class="payment-title"><i class="fa-solid fa-cash-register" style="color: var(--primary-color);"></i> 訂房確認與付款</h2>
+        <div class="payment-brand" style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 14px;">
+          <img src="favicon.svg" alt="bazar花園 logo" style="width: 40px; height: 40px;">
+          <span class="logo-text" style="font-size: 22px;">bazar花園</span>
+        </div>
         <p style="color: var(--text-light); margin-bottom: 24px;">請確認您的訂房資料與金額，選擇付款方式後進行付款。</p>
         
         <div class="payment-details">
@@ -111,34 +133,58 @@
         </div>
 
         <div id="unpaidSection">
-          <h4 style="margin-bottom: 16px; font-size: 15px; text-align: left;"><i class="fa-solid fa-credit-card"></i> 信用卡線上付款</h4>
-
-          <div class="sandbox-hint" id="sandboxHint" style="display: none;">
-            <i class="fa-solid fa-flask"></i> <strong>測試環境</strong>：請使用測試卡號 <strong>4242 4242 4242 4242</strong>，有效期填任一未來月/年，安全碼 <strong>123</strong>。不會產生真實扣款。
+          <!-- Payment method switch (visible only when both methods are enabled) -->
+          <div id="methodSwitch" style="display: none; gap: 10px; margin-bottom: 20px;">
+            <button type="button" class="method-btn active" id="btnMethodCard"><i class="fa-solid fa-credit-card"></i> 信用卡付款</button>
+            <button type="button" class="method-btn" id="btnMethodTransfer"><i class="fa-solid fa-building-columns"></i> 銀行匯款</button>
           </div>
 
-          <div class="tp-form" style="text-align: left; margin-bottom: 20px;">
-            <div style="margin-bottom: 14px;">
-              <label for="card-number">信用卡卡號</label>
-              <div class="tpfield" id="card-number"></div>
+          <!-- Credit card (TapPay) -->
+          <div id="cardMethodBox" style="display: none;">
+            <h4 style="margin-bottom: 16px; font-size: 15px; text-align: left;"><i class="fa-solid fa-credit-card"></i> 信用卡線上付款</h4>
+
+            <div class="sandbox-hint" id="sandboxHint" style="display: none;">
+              <i class="fa-solid fa-flask"></i> <strong>測試環境</strong>：請使用測試卡號 <strong>4242 4242 4242 4242</strong>，有效期填任一未來月/年，安全碼 <strong>123</strong>。不會產生真實扣款。
             </div>
-            <div style="display: flex; gap: 14px;">
-              <div style="flex: 1;">
-                <label for="card-expiration-date">有效期限</label>
-                <div class="tpfield" id="card-expiration-date"></div>
+
+            <div class="tp-form" style="text-align: left; margin-bottom: 20px;">
+              <div style="margin-bottom: 14px;">
+                <label for="card-number">信用卡卡號</label>
+                <div class="tpfield" id="card-number"></div>
               </div>
-              <div style="flex: 1;">
-                <label for="card-ccv">背面末三碼 (CCV)</label>
-                <div class="tpfield" id="card-ccv"></div>
+              <div style="display: flex; gap: 14px;">
+                <div style="flex: 1;">
+                  <label for="card-expiration-date">有效期限</label>
+                  <div class="tpfield" id="card-expiration-date"></div>
+                </div>
+                <div style="flex: 1;">
+                  <label for="card-ccv">背面末三碼 (CCV)</label>
+                  <div class="tpfield" id="card-ccv"></div>
+                </div>
               </div>
             </div>
+
+            <button class="btn-pay-now" id="btnPay" disabled>請輸入完整卡片資訊</button>
+            <p id="payMsg" style="margin-top: 12px; font-size: 14px; font-weight: 600; color: #dc2626;"></p>
+            <p style="margin-top: 12px; font-size: 12px; color: var(--text-light);">
+              <i class="fa-solid fa-lock"></i> 本站透過 TapPay 金流加密傳輸，卡號直接由 TapPay 安全欄位處理，不經過民宿伺服器。
+            </p>
           </div>
 
-          <button class="btn-pay-now" id="btnPay" disabled>請輸入完整卡片資訊</button>
-          <p id="payMsg" style="margin-top: 12px; font-size: 14px; font-weight: 600; color: #dc2626;"></p>
-          <p style="margin-top: 12px; font-size: 12px; color: var(--text-light);">
-            <i class="fa-solid fa-lock"></i> 本站透過 TapPay 金流加密傳輸，卡號直接由 TapPay 安全欄位處理，不經過民宿伺服器。
-          </p>
+          <!-- Bank transfer -->
+          <div id="transferMethodBox" style="display: none; text-align: left;">
+            <h4 style="margin-bottom: 16px; font-size: 15px;"><i class="fa-solid fa-building-columns"></i> 銀行匯款資訊</h4>
+            <div id="transferInfoText" style="background: #f7faf8; border: 1px solid var(--border-color); border-radius: 12px; padding: 16px 20px; font-size: 14px; line-height: 1.9; white-space: pre-line; color: var(--text-dark);">
+              <!-- Filled from /api/payment/config -->
+            </div>
+            <p style="margin-top: 12px; font-size: 13px; color: var(--text-light);">
+              <i class="fa-solid fa-circle-info"></i> 匯款完成後，請來電或 LINE 告知您的<strong>帳號後五碼</strong>與訂單編號，民宿主人核對入帳後會將訂單改為「已付款」。
+            </p>
+          </div>
+
+          <button id="btnCancel" style="width: 100%; margin-top: 16px; padding: 12px; background: #ffffff; color: var(--text-light); border: 1px solid var(--border-color); border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer;">
+            <i class="fa-solid fa-rotate-left"></i> 取消此訂單，返回修改訂房資料
+          </button>
         </div>
 
         <div id="paidSection" style="display: none;">
@@ -194,15 +240,62 @@
       charter: '10 人小包棟'
     };
 
+    // ---- Payment methods setup (card / transfer / both) ----
+    const methodSwitch = document.getElementById('methodSwitch');
+    const cardMethodBox = document.getElementById('cardMethodBox');
+    const transferMethodBox = document.getElementById('transferMethodBox');
+    const btnMethodCard = document.getElementById('btnMethodCard');
+    const btnMethodTransfer = document.getElementById('btnMethodTransfer');
+
+    function showMethod(method) {
+      cardMethodBox.style.display = method === 'card' ? 'block' : 'none';
+      transferMethodBox.style.display = method === 'transfer' ? 'block' : 'none';
+      btnMethodCard.classList.toggle('active', method === 'card');
+      btnMethodTransfer.classList.toggle('active', method === 'transfer');
+    }
+
+    btnMethodCard.addEventListener('click', () => showMethod('card'));
+    btnMethodTransfer.addEventListener('click', () => showMethod('transfer'));
+
+    let methodsInitialized = false;
+
+    async function setupPaymentMethods() {
+      if (methodsInitialized) return;
+      methodsInitialized = true;
+
+      let cfg;
+      try {
+        cfg = await fetch('/api/payment/config').then(r => r.json());
+      } catch (err) {
+        console.error('Error loading payment config:', err);
+        cardMethodBox.style.display = 'block';
+        payMsg.textContent = '付款設定載入失敗，請重新整理頁面。';
+        return;
+      }
+
+      document.getElementById('transferInfoText').textContent =
+        cfg.transferInfo || '請洽民宿主人取得匯款帳號資訊（電話：0975-080-788）。';
+
+      if (cfg.methods === 'transfer') {
+        showMethod('transfer');
+      } else if (cfg.methods === 'both') {
+        methodSwitch.style.display = 'flex';
+        showMethod('card');
+        initTapPay(cfg);
+      } else {
+        showMethod('card');
+        initTapPay(cfg);
+      }
+    }
+
     // ---- TapPay Direct Pay setup ----
     let tappayInitialized = false;
 
-    async function initTapPay() {
+    function initTapPay(cfg) {
       if (tappayInitialized) return;
       tappayInitialized = true;
 
       try {
-        const cfg = await fetch('/api/payment/config').then(r => r.json());
         TPDirect.setupSDK(cfg.appId, cfg.appKey, cfg.env);
 
         if (cfg.env === 'sandbox') {
@@ -299,7 +392,7 @@
       } else {
         unpaidSection.style.display = 'block';
         paidSection.style.display = 'none';
-        initTapPay(); // mount TapPay secure card fields for pending orders
+        setupPaymentMethods(); // show card / transfer options per admin setting
       }
     }
 
@@ -361,6 +454,21 @@
           btnPay.textContent = '確認付款';
         }
       });
+    });
+
+    // Cancel this pending booking, then go back to the form pre-filled for re-editing
+    document.getElementById('btnCancel').addEventListener('click', async () => {
+      const btnCancel = document.getElementById('btnCancel');
+      btnCancel.disabled = true;
+      btnCancel.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> 處理中...';
+
+      try {
+        await fetch(`/api/bookings/${bookingId}/cancel`, { method: 'PUT' });
+      } catch (err) {
+        console.error('Error cancelling booking:', err);
+      }
+      // The old order data is carried back via ?edit= so the form re-fills itself
+      window.location.href = `./?edit=${bookingId}#booking`;
     });
 
     // Load on load

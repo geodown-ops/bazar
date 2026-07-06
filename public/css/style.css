@@ -1052,31 +1052,32 @@ footer {
 }
 
 .admin-layout {
-  display: grid;
-  grid-template-columns: 240px 1fr;
-  gap: 40px;
-  align-items: start;
+  display: block;
 }
 
+/* Top horizontal menu bar (was a left sidebar) */
 .admin-sidebar {
+  display: flex;
+  flex-wrap: wrap;
   background: var(--white);
   border-radius: 16px;
   overflow: hidden;
   box-shadow: var(--shadow-sm);
   list-style: none;
+  margin-bottom: 24px;
 }
 
 .admin-sidebar li a {
   display: block;
   padding: 16px 24px;
   font-weight: 600;
-  border-left: 4px solid transparent;
+  border-bottom: 4px solid transparent;
   color: var(--text-dark);
 }
 
 .admin-sidebar li.active a {
   background-color: #f1f6f2;
-  border-left-color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
   color: var(--primary-color);
 }
 
