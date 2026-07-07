@@ -86,11 +86,14 @@ function switchTab(tabName) {
   // Show/Hide tab content
   document.getElementById('tab_bookings').style.display = tabName === 'bookings' ? 'block' : 'none';
   document.getElementById('tab_stats').style.display = tabName === 'stats' ? 'block' : 'none';
+  document.getElementById('tab_promos').style.display = tabName === 'promos' ? 'block' : 'none';
   document.getElementById('tab_cms').style.display = tabName === 'cms' ? 'block' : 'none';
   document.getElementById('tab_settings').style.display = tabName === 'settings' ? 'block' : 'none';
 
   if (tabName === 'stats') {
     renderStatsCharts();
+  } else if (tabName === 'promos') {
+    loadPromoCodes();
   } else if (tabName === 'cms') {
     loadCmsData();
     switchCmsSubTab(currentCmsSubTab || 'rooms');
@@ -291,12 +294,184 @@ function viewBookingDetails(id) {
 套裝內容：
 ${pkgList}
 套裝小計：NT$ ${booking.packagePrice.toLocaleString()}
-
+${booking.discount ? `優惠折抵：${booking.promoCode} − NT$ ${booking.discount.toLocaleString()}\n` : ''}
 應收總額：NT$ ${booking.totalPrice.toLocaleString()}
 付款狀態：${booking.paymentStatus}
 下單時間：${new Date(booking.createdAt).toLocaleString()}
 備註需求：${booking.note || '無'}
   `);
+}
+
+// 9-1. Promo codes management (優惠碼管理)
+let allPromoCodes = [];
+
+async function loadPromoCodes() {
+  try {
+    const res = await fetch('/api/admin/promocodes', {
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    const result = await res.json();
+    if (result.success) {
+      allPromoCodes = result.promoCodes;
+      renderPromosTable();
+    }
+  } catch (err) {
+    console.error('Error loading promo codes:', err);
+  }
+}
+
+function isPromoExpired(p) {
+  return p.expiresAt && new Date(`${p.expiresAt}T23:59:59`) < new Date();
+}
+
+function renderPromosTable() {
+  const body = document.getElementById('promosTableBody');
+  const empty = document.getElementById('emptyPromosMsg');
+  body.innerHTML = '';
+
+  if (allPromoCodes.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  allPromoCodes.forEach(p => {
+    const discountText = p.type === 'percent'
+      ? `折抵 ${p.value}%`
+      : `折抵 NT$ ${Number(p.value).toLocaleString()}`;
+
+    const maxUses = parseInt(p.maxUses, 10) || 0;
+    const used = p.usedCount || 0;
+    const usageText = maxUses > 0 ? `${used} / ${maxUses}` : `${used} / 不限`;
+    const soldOut = maxUses > 0 && used >= maxUses;
+
+    let statusText = '啟用中';
+    let statusClass = 'paid';
+    if (p.enabled === false) { statusText = '已停用'; statusClass = 'cancelled'; }
+    else if (isPromoExpired(p)) { statusText = '已過期'; statusClass = 'cancelled'; }
+    else if (soldOut) { statusText = '已用完'; statusClass = 'pending'; }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-family: monospace; font-weight: 700; color: var(--secondary-color);">${p.code}</td>
+      <td>${discountText}</td>
+      <td style="font-weight: 700;">${usageText}</td>
+      <td>${p.expiresAt || '永久'}</td>
+      <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+      <td style="max-width: 160px; overflow: hidden; text-overflow: ellipsis;" title="${p.note || ''}">${p.note || '-'}</td>
+      <td>
+        <div class="admin-actions">
+          <button class="btn-action-small" onclick="viewPromoRedemptions('${p.code}')" title="核銷紀錄"><i class="fa-solid fa-receipt"></i> 核銷紀錄</button>
+          <button class="btn-action-small" onclick="togglePromo('${p.code}', ${p.enabled === false})" title="${p.enabled === false ? '重新啟用' : '停用'}">
+            <i class="fa-solid ${p.enabled === false ? 'fa-toggle-off' : 'fa-toggle-on'}"></i>
+          </button>
+          <button class="btn-action-small" onclick="deletePromoCode('${p.code}')" style="color: #dc2626;" title="刪除"><i class="fa-solid fa-trash-can"></i></button>
+        </div>
+      </td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+async function createPromoCode() {
+  const msg = document.getElementById('promoCreateMsg');
+  msg.style.color = '#dc2626';
+
+  const payload = {
+    code: document.getElementById('promo_code').value.trim().toUpperCase(),
+    type: document.getElementById('promo_type').value,
+    value: document.getElementById('promo_value').value,
+    maxUses: document.getElementById('promo_maxUses').value,
+    expiresAt: document.getElementById('promo_expiresAt').value,
+    note: document.getElementById('promo_note').value.trim()
+  };
+
+  try {
+    const res = await fetch('/api/admin/promocodes', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    const result = await res.json();
+    if (result.success) {
+      msg.style.color = '#059669';
+      msg.textContent = `優惠碼 ${result.promo.code} 建立成功！`;
+      document.getElementById('promo_code').value = '';
+      document.getElementById('promo_value').value = '';
+      document.getElementById('promo_maxUses').value = '0';
+      document.getElementById('promo_expiresAt').value = '';
+      document.getElementById('promo_note').value = '';
+      loadPromoCodes();
+    } else {
+      msg.textContent = result.message || '建立失敗。';
+    }
+  } catch (err) {
+    console.error('Error creating promo code:', err);
+    msg.textContent = '伺服器連線錯誤！';
+  }
+}
+
+async function togglePromo(code, enable) {
+  try {
+    const res = await fetch(`/api/admin/promocodes/${encodeURIComponent(code)}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ enabled: enable })
+    });
+    const result = await res.json();
+    if (result.success) {
+      loadPromoCodes();
+    } else {
+      alert(`更新失敗: ${result.message}`);
+    }
+  } catch (err) {
+    console.error('Error toggling promo code:', err);
+    alert('伺服器連線錯誤！');
+  }
+}
+
+async function deletePromoCode(code) {
+  if (!confirm(`確定要刪除優惠碼 ${code} 嗎？已核銷的訂單折抵不受影響，但此碼將無法再使用。`)) return;
+
+  try {
+    const res = await fetch(`/api/admin/promocodes/${encodeURIComponent(code)}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    const result = await res.json();
+    if (result.success) {
+      loadPromoCodes();
+    } else {
+      alert(`刪除失敗: ${result.message}`);
+    }
+  } catch (err) {
+    console.error('Error deleting promo code:', err);
+    alert('伺服器連線錯誤！');
+  }
+}
+
+function viewPromoRedemptions(code) {
+  const promo = allPromoCodes.find(p => p.code === code);
+  if (!promo) return;
+
+  const redemptions = promo.redemptions || [];
+  if (redemptions.length === 0) {
+    alert(`優惠碼 ${code} 目前尚無核銷紀錄。\n（訂單實際付款完成後才會計入核銷）`);
+    return;
+  }
+
+  const totalDiscount = redemptions.reduce((sum, r) => sum + (r.amount || 0), 0);
+  const lines = redemptions.map((r, i) =>
+    `${i + 1}. 訂單 ${r.bookingId}｜${r.name}｜折抵 NT$ ${(r.amount || 0).toLocaleString()}｜${new Date(r.usedAt).toLocaleString()}`
+  ).join('\n');
+
+  alert(`=== 優惠碼 ${code} 核銷紀錄 ===\n共 ${redemptions.length} 筆，累計折抵 NT$ ${totalDiscount.toLocaleString()}\n\n${lines}`);
 }
 
 // 10. Render Charts dynamically using custom DOM bar charts

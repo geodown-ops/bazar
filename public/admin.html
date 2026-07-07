@@ -73,6 +73,7 @@
         <ul class="admin-sidebar">
           <li class="active" id="tab_bookings_nav"><a href="javascript:switchTab('bookings')"><i class="fa-solid fa-calendar-check"></i> 訂單明細管理</a></li>
           <li id="tab_stats_nav"><a href="javascript:switchTab('stats')"><i class="fa-solid fa-chart-pie"></i> 營運分析統計</a></li>
+          <li id="tab_promos_nav"><a href="javascript:switchTab('promos')"><i class="fa-solid fa-ticket"></i> 優惠碼管理</a></li>
           <li id="tab_cms_nav"><a href="javascript:switchTab('cms')"><i class="fa-solid fa-file-pen"></i> 網站內容管理</a></li>
           <li id="tab_settings_nav"><a href="javascript:switchTab('settings')"><i class="fa-solid fa-gears"></i> 系統設定</a></li>
         </ul>
@@ -139,6 +140,76 @@
                 <!-- Dynamic SVG Bars -->
               </div>
             </div>
+          </div>
+
+          <!-- Tab: Promo Codes Management -->
+          <div id="tab_promos" style="display: none;">
+            <h3 style="font-size: 20px; margin-bottom: 24px;"><i class="fa-solid fa-ticket"></i> 優惠碼管理</h3>
+
+            <div style="background-color: #f7faf8; border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; margin-bottom: 30px;">
+              <h4 style="font-size: 16px; margin-bottom: 16px;"><i class="fa-solid fa-plus"></i> 建立新優惠碼</h4>
+              <div class="form-group-row">
+                <div class="form-group">
+                  <label for="promo_code">優惠碼 (3-20 碼英數字，可含 - 與 _) *</label>
+                  <input type="text" id="promo_code" placeholder="例如: SUMMER300" style="text-transform: uppercase;">
+                </div>
+                <div class="form-group">
+                  <label for="promo_type">折扣方式 *</label>
+                  <select id="promo_type" style="width: 100%; padding: 10px 12px;">
+                    <option value="amount">折抵固定金額 (NT$)</option>
+                    <option value="percent">折抵百分比 (%)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group-row">
+                <div class="form-group">
+                  <label for="promo_value">折扣數值 * (金額填元數，百分比填 1-100)</label>
+                  <input type="number" id="promo_value" min="1" placeholder="例如: 300 或 10">
+                </div>
+                <div class="form-group">
+                  <label for="promo_maxUses">使用次數上限 (0 = 不限次數)</label>
+                  <input type="number" id="promo_maxUses" min="0" value="0">
+                </div>
+              </div>
+              <div class="form-group-row">
+                <div class="form-group">
+                  <label for="promo_expiresAt">有效期限 (留空 = 永久有效)</label>
+                  <input type="date" id="promo_expiresAt">
+                </div>
+                <div class="form-group">
+                  <label for="promo_note">備註 (活動說明，選填)</label>
+                  <input type="text" id="promo_note" placeholder="例如: 暑期 FB 粉專活動">
+                </div>
+              </div>
+              <button class="btn-primary" onclick="createPromoCode()">建立優惠碼</button>
+              <p id="promoCreateMsg" style="margin-top: 12px; font-size: 14px; font-weight: 600;"></p>
+            </div>
+
+            <div class="admin-table-container">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>優惠碼</th>
+                    <th>折扣內容</th>
+                    <th>已核銷 / 上限</th>
+                    <th>有效期限</th>
+                    <th>狀態</th>
+                    <th>備註</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="promosTableBody">
+                  <!-- JS generated -->
+                </tbody>
+              </table>
+              <div id="emptyPromosMsg" style="text-align: center; padding: 40px; color: var(--text-light); display: none;">
+                <i class="fa-solid fa-ticket" style="font-size: 32px; margin-bottom: 12px; display: block;"></i>
+                尚未建立任何優惠碼。
+              </div>
+            </div>
+            <p style="font-size: 13px; color: var(--text-light); margin-top: 14px;">
+              <i class="fa-solid fa-circle-info"></i> 核銷規則：旅客訂房時輸入優惠碼即折抵金額；訂單<strong>實際付款完成</strong>（信用卡入帳或管理員將匯款訂單改為已付款）時才計入核銷次數。點「核銷紀錄」可查看每筆折抵明細。
+            </p>
           </div>
 
           <!-- Tab 3: Password Settings -->
@@ -441,6 +512,6 @@
     </div>
   </div>
 
-  <script src="js/admin.js?v=9"></script>
+  <script src="js/admin.js?v=10"></script>
 </body>
 </html>

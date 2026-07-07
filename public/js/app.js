@@ -674,10 +674,93 @@ function calculateClientPrice() {
   }
 
   summaryPackagePrice.textContent = `NT$ ${packagePrice.toLocaleString()}`;
-  
+
   const grandTotal = roomPrice + packagePrice;
-  summaryTotal.textContent = `NT$ ${grandTotal.toLocaleString()}`;
+  currentSubtotal = grandTotal;
+
+  // Promo discount mirrors the server rules (server re-validates on submit)
+  let discount = 0;
+  if (appliedPromo) {
+    discount = appliedPromo.type === 'percent'
+      ? Math.round(grandTotal * appliedPromo.value / 100)
+      : Math.round(appliedPromo.value);
+    discount = Math.max(0, Math.min(discount, Math.max(0, grandTotal - 1)));
+  }
+  promoDiscountRow.style.display = discount > 0 ? '' : 'none';
+  document.getElementById('summaryDiscount').textContent = `- NT$ ${discount.toLocaleString()}`;
+
+  summaryTotal.textContent = `NT$ ${(grandTotal - discount).toLocaleString()}`;
 }
+
+// 6-1. Promo code (優惠碼) apply / remove
+let currentSubtotal = 0;
+let appliedPromo = null; // { code, type, value }
+
+const promoCodeInput = document.getElementById('promoCodeInput');
+const btnApplyPromo = document.getElementById('btnApplyPromo');
+const promoMsg = document.getElementById('promoMsg');
+const promoDiscountRow = document.getElementById('promoDiscountRow');
+
+function clearPromo(message) {
+  appliedPromo = null;
+  promoCodeInput.disabled = false;
+  btnApplyPromo.textContent = '套用';
+  promoMsg.style.color = '#dc2626';
+  promoMsg.textContent = message || '';
+  calculateClientPrice();
+}
+
+async function applyPromoCode() {
+  // Button doubles as「移除」once a code is applied
+  if (appliedPromo) {
+    promoCodeInput.value = '';
+    clearPromo('');
+    return;
+  }
+
+  const code = promoCodeInput.value.trim().toUpperCase();
+  if (!code) {
+    promoMsg.style.color = '#dc2626';
+    promoMsg.textContent = '請先輸入優惠碼。';
+    return;
+  }
+
+  calculateClientPrice(); // make sure currentSubtotal reflects the latest form state
+
+  btnApplyPromo.disabled = true;
+  btnApplyPromo.textContent = '檢查中...';
+
+  try {
+    const res = await fetch('/api/promo/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, subtotal: currentSubtotal })
+    });
+    const result = await res.json();
+
+    if (result.success && result.valid) {
+      appliedPromo = result.promo;
+      promoCodeInput.value = result.promo.code;
+      promoCodeInput.disabled = true;
+      document.getElementById('promoAppliedCode').textContent = result.promo.code;
+      btnApplyPromo.textContent = '移除';
+      promoMsg.style.color = '#059669';
+      promoMsg.textContent = `優惠碼套用成功，本訂單折抵 NT$ ${result.discount.toLocaleString()}！`;
+      calculateClientPrice();
+    } else {
+      clearPromo(result.message || '優惠碼無法使用。');
+    }
+  } catch (err) {
+    console.error('Error validating promo code:', err);
+    clearPromo('伺服器連線錯誤，請稍後再試。');
+  } finally {
+    btnApplyPromo.disabled = false;
+    if (btnApplyPromo.textContent === '檢查中...') btnApplyPromo.textContent = '套用';
+  }
+}
+
+btnApplyPromo.addEventListener('click', applyPromoCode);
+promoCodeInput.addEventListener('keydown', e => { if (e.key === 'Enter') applyPromoCode(); });
 
 // 7. Event handlers setup
 function setupEventHandlers() {
@@ -811,7 +894,8 @@ btnSubmitBooking.addEventListener('click', async () => {
 
   const payload = {
     name, phone, email, roomType, checkIn, checkOut,
-    adults, kids, isSummer, isHolidayPackage, packages, note
+    adults, kids, isSummer, isHolidayPackage, packages, note,
+    promoCode: appliedPromo ? appliedPromo.code : ''
   };
 
   try {
@@ -1024,6 +1108,13 @@ async function prefillFromBooking() {
     });
 
     calculateClientPrice();
+
+    // Re-apply the original promo code (re-validated against the server)
+    if (b.promoCode) {
+      promoCodeInput.value = b.promoCode;
+      await applyPromoCode();
+    }
+
     document.getElementById('booking').scrollIntoView({ behavior: 'smooth' });
   } catch (err) {
     console.error('Error pre-filling booking for edit:', err);
@@ -1036,6 +1127,7 @@ async function initApp() {
   setupEventHandlers();
   initParallaxDecor();
   await loadDynamicContent(); // Load content from db.json dynamically
+  calculateClientPrice();     // initial estimate (also primes currentSubtotal)
   await prefillFromBooking(); // ?edit=BZxxx → re-edit an existing booking
 }
 

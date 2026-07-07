@@ -530,6 +530,19 @@
             </div>
           </div>
 
+          <div style="margin: 16px 0 4px;">
+            <div style="display: flex; gap: 10px;">
+              <input type="text" id="promoCodeInput" placeholder="輸入優惠碼 (選填)" style="flex: 1; min-width: 0; text-transform: uppercase;">
+              <button type="button" class="btn-primary" id="btnApplyPromo" style="padding: 8px 20px; font-size: 14px; white-space: nowrap;">套用</button>
+            </div>
+            <p id="promoMsg" style="font-size: 13px; font-weight: 600; margin-top: 6px;"></p>
+          </div>
+
+          <div class="summary-row" id="promoDiscountRow" style="display: none; color: #059669; font-weight: 700;">
+            <span>優惠折抵 (<span id="promoAppliedCode"></span>)：</span>
+            <span id="summaryDiscount">- NT$ 0</span>
+          </div>
+
           <div class="summary-row total">
             <span>預估總金額：</span>
             <span id="summaryTotal">NT$ 2,000</span>
@@ -714,6 +727,6 @@
   </div>
 
   <!-- JavaScript -->
-  <script src="js/app.js?v=9"></script>
+  <script src="js/app.js?v=10"></script>
 </body>
 </html>

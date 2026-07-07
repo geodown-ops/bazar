@@ -114,6 +114,7 @@ function sendPaymentConfirmationEmail(booking) {
       </table>
       <h3 style="font-size:15px;margin:16px 0 8px;">加購套裝行程</h3>
       <table style="width:100%;border-collapse:collapse;font-size:13px;">${packageRows}</table>
+      ${booking.discount ? `<p style="font-size:13px;font-weight:bold;text-align:right;margin:12px 0 0;color:#059669;">優惠碼 ${booking.promoCode} 已折抵 NT$ ${booking.discount.toLocaleString()}</p>` : ''}
       <p style="font-size:16px;font-weight:bold;text-align:right;margin:16px 0;color:#f58f29;">
         已付總金額：NT$ ${booking.totalPrice.toLocaleString()}
       </p>
@@ -364,7 +365,7 @@ function calculatePrice(bookingData) {
 
 // 1. Submit Booking Request
 app.post('/api/bookings', (req, res) => {
-  const { name, phone, email, roomType, checkIn, checkOut, adults, kids, isSummer, isHolidayPackage, packages, note } = req.body;
+  const { name, phone, email, roomType, checkIn, checkOut, adults, kids, isSummer, isHolidayPackage, packages, note, promoCode } = req.body;
 
   if (!name || !phone || !roomType || !checkIn || !checkOut) {
     return res.status(400).json({ success: false, message: '必填欄位缺失。' });
@@ -373,8 +374,21 @@ app.post('/api/bookings', (req, res) => {
   const calculation = calculatePrice({ roomType, checkIn, checkOut, adults, kids, isSummer, isHolidayPackage, packages });
 
   const db = readDb();
+
+  // Promo code is re-validated server-side; the discount never comes from the client
+  let promo = null;
+  let discount = 0;
+  if (promoCode) {
+    promo = findPromo(db, promoCode);
+    const check = evaluatePromo(promo, calculation.totalPrice);
+    if (!check.valid) {
+      return res.status(400).json({ success: false, message: `優惠碼無法使用：${check.message}` });
+    }
+    discount = check.discount;
+  }
+
   const bookingId = 'BZ' + Date.now().toString().slice(-8) + Math.floor(Math.random() * 10);
-  
+
   const newBooking = {
     id: bookingId,
     name,
@@ -392,7 +406,9 @@ app.post('/api/bookings', (req, res) => {
     packageDetails: calculation.packageDetails,
     roomPrice: calculation.roomPrice,
     packagePrice: calculation.packagePrice,
-    totalPrice: calculation.totalPrice,
+    promoCode: promo ? promo.code : '',
+    discount,
+    totalPrice: calculation.totalPrice - discount,
     paymentStatus: 'Pending', // Pending, Paid, Cancelled, Completed
     note: note || '',
     createdAt: new Date().toISOString()
@@ -404,7 +420,7 @@ app.post('/api/bookings', (req, res) => {
   res.json({
     success: true,
     bookingId,
-    totalPrice: calculation.totalPrice,
+    totalPrice: calculation.totalPrice - discount,
     message: '預約成功！請進行模擬付款。'
   });
 });
@@ -454,6 +470,74 @@ app.post('/api/bookings/lookup', (req, res) => {
   res.json({ success: true, bookings: matches });
 });
 
+// ---- Promo codes (優惠碼) ----
+function normalizePromoCode(code) {
+  return String(code || '').trim().toUpperCase();
+}
+
+function findPromo(db, code) {
+  const canonical = normalizePromoCode(code);
+  if (!canonical) return null;
+  return (db.promoCodes || []).find(p => normalizePromoCode(p.code) === canonical) || null;
+}
+
+// Check a promo against an order subtotal. Returns { valid, discount, message }.
+function evaluatePromo(promo, subtotal) {
+  if (!promo) return { valid: false, discount: 0, message: '查無此優惠碼。' };
+  if (promo.enabled === false) return { valid: false, discount: 0, message: '此優惠碼已停用。' };
+  if (promo.expiresAt) {
+    const expiry = new Date(`${promo.expiresAt}T23:59:59`);
+    if (!isNaN(expiry) && expiry < new Date()) {
+      return { valid: false, discount: 0, message: '此優惠碼已過期。' };
+    }
+  }
+  const maxUses = parseInt(promo.maxUses, 10) || 0; // 0 = unlimited
+  if (maxUses > 0 && (promo.usedCount || 0) >= maxUses) {
+    return { valid: false, discount: 0, message: '此優惠碼已達使用上限。' };
+  }
+  let discount = promo.type === 'percent'
+    ? Math.round(subtotal * (parseFloat(promo.value) || 0) / 100)
+    : Math.round(parseFloat(promo.value) || 0);
+  // Keep at least NT$1 payable so credit-card charges stay valid
+  discount = Math.max(0, Math.min(discount, Math.max(0, subtotal - 1)));
+  if (discount <= 0) return { valid: false, discount: 0, message: '此優惠碼不適用於本訂單金額。' };
+  return { valid: true, discount, message: '' };
+}
+
+// 核銷: a promo counts as used only when its booking is actually paid.
+// Idempotent per booking — TapPay settle and admin status change can both call it.
+function redeemPromoForBooking(db, booking) {
+  if (!booking.promoCode || !booking.discount) return;
+  const promo = findPromo(db, booking.promoCode);
+  if (!promo) return;
+  promo.redemptions = promo.redemptions || [];
+  if (promo.redemptions.some(r => r.bookingId === booking.id)) return;
+  promo.redemptions.push({
+    bookingId: booking.id,
+    name: booking.name,
+    amount: booking.discount,
+    usedAt: new Date().toISOString()
+  });
+  promo.usedCount = (promo.usedCount || 0) + 1;
+}
+
+// 2-3. Promo code validation (前台試算用；不佔用名額，成立訂單付款後才核銷)
+app.post('/api/promo/validate', (req, res) => {
+  const { code, subtotal } = req.body;
+  const db = readDb();
+  const promo = findPromo(db, code);
+  const result = evaluatePromo(promo, parseInt(subtotal, 10) || 0);
+  if (!result.valid) {
+    return res.json({ success: true, valid: false, message: result.message });
+  }
+  res.json({
+    success: true,
+    valid: true,
+    discount: result.discount,
+    promo: { code: promo.code, type: promo.type, value: promo.value }
+  });
+});
+
 // Payment methods setting: 'card' (credit card only) | 'transfer' (bank transfer only) | 'both'
 function getPaymentMethods(db) {
   const m = db.settings && db.settings.paymentMethods;
@@ -493,6 +577,7 @@ function markBookingPaid(db, index, tp) {
     paidAt: new Date().toISOString()
   };
   delete booking.payment3DS;
+  redeemPromoForBooking(db, booking); // 核銷優惠碼（冪等）
   writeDb(db);
   sendPaymentConfirmationEmail(booking); // fire-and-forget: never blocks the payment response
   return booking;
@@ -714,8 +799,12 @@ app.put('/api/admin/bookings/:id', requireAdmin, (req, res) => {
 
   if (paymentStatus) {
     db.bookings[index].paymentStatus = paymentStatus;
+    // 匯款訂單由管理員手動改為已付款時，一併核銷優惠碼（冪等）
+    if (paymentStatus === 'Paid' || paymentStatus === 'Completed') {
+      redeemPromoForBooking(db, db.bookings[index]);
+    }
   }
-  
+
   writeDb(db);
   res.json({ success: true, booking: db.bookings[index] });
 });
@@ -803,6 +892,77 @@ app.put('/api/admin/settings/payment-methods', requireAdmin, (req, res) => {
   db.settings.paymentMethods = method;
   writeDb(db);
   res.json({ success: true, message: '付款方式設定已更新。', method });
+});
+
+// 9-2. Admin API - Promo codes (優惠碼管理)
+app.get('/api/admin/promocodes', requireAdmin, (req, res) => {
+  const db = readDb();
+  res.json({ success: true, promoCodes: db.promoCodes || [] });
+});
+
+app.post('/api/admin/promocodes', requireAdmin, (req, res) => {
+  const { code, type, value, maxUses, expiresAt, note } = req.body;
+  const canonical = normalizePromoCode(code);
+  if (!canonical || !/^[A-Z0-9_-]{3,20}$/.test(canonical)) {
+    return res.status(400).json({ success: false, message: '優惠碼需為 3-20 碼英數字（可含 - 與 _）。' });
+  }
+  if (!['amount', 'percent'].includes(type)) {
+    return res.status(400).json({ success: false, message: '折扣類型不正確。' });
+  }
+  const numValue = parseFloat(value);
+  if (!(numValue > 0) || (type === 'percent' && numValue > 100)) {
+    return res.status(400).json({ success: false, message: '折扣數值不正確（百分比需為 1-100）。' });
+  }
+
+  const db = readDb();
+  db.promoCodes = db.promoCodes || [];
+  if (findPromo(db, canonical)) {
+    return res.status(400).json({ success: false, message: '此優惠碼已存在。' });
+  }
+
+  const promo = {
+    code: canonical,
+    type,
+    value: numValue,
+    maxUses: parseInt(maxUses, 10) || 0, // 0 = unlimited
+    expiresAt: expiresAt || '',
+    note: note || '',
+    enabled: true,
+    usedCount: 0,
+    redemptions: [],
+    createdAt: new Date().toISOString()
+  };
+  db.promoCodes.push(promo);
+  writeDb(db);
+  res.json({ success: true, promo, message: '優惠碼建立成功。' });
+});
+
+app.put('/api/admin/promocodes/:code', requireAdmin, (req, res) => {
+  const db = readDb();
+  const promo = findPromo(db, req.params.code);
+  if (!promo) {
+    return res.status(404).json({ success: false, message: '找不到此優惠碼。' });
+  }
+
+  const { enabled, maxUses, expiresAt, note } = req.body;
+  if (enabled !== undefined) promo.enabled = !!enabled;
+  if (maxUses !== undefined) promo.maxUses = parseInt(maxUses, 10) || 0;
+  if (expiresAt !== undefined) promo.expiresAt = expiresAt || '';
+  if (note !== undefined) promo.note = String(note);
+  writeDb(db);
+  res.json({ success: true, promo, message: '優惠碼已更新。' });
+});
+
+app.delete('/api/admin/promocodes/:code', requireAdmin, (req, res) => {
+  const db = readDb();
+  db.promoCodes = db.promoCodes || [];
+  const index = db.promoCodes.findIndex(p => normalizePromoCode(p.code) === normalizePromoCode(req.params.code));
+  if (index === -1) {
+    return res.status(404).json({ success: false, message: '找不到此優惠碼。' });
+  }
+  db.promoCodes.splice(index, 1);
+  writeDb(db);
+  res.json({ success: true, message: '優惠碼已刪除。' });
 });
 
 // 10. Front-end API - Get Site Configuration
