@@ -257,6 +257,14 @@
       transferMethodBox.style.display = method === 'transfer' ? 'block' : 'none';
       btnMethodCard.classList.toggle('active', method === 'card');
       btnMethodTransfer.classList.toggle('active', method === 'transfer');
+      // Tell the server which method was picked (transfer keeps the room held longer)
+      if (bookingId) {
+        fetch(`/api/bookings/${bookingId}/method`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ method })
+        }).catch(() => {});
+      }
     }
 
     btnMethodCard.addEventListener('click', () => showMethod('card'));
@@ -367,7 +375,7 @@
       dt_name.textContent = booking.name;
       dt_phone.textContent = booking.phone;
       
-      const roomName = roomNames[booking.roomType] || booking.roomType;
+      const roomName = booking.roomName || roomNames[booking.roomType] || booking.roomType;
       dt_roomInfo.textContent = `${roomName} (${booking.nights} 晚)`;
       dt_dates.textContent = `${booking.checkIn} ~ ${booking.checkOut}`;
       dt_people.textContent = `${booking.adults} 大 ${booking.kids} 小`;

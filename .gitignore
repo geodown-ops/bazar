@@ -4,3 +4,4 @@ tappay.local.json
 email.local.json
 *.log
 .DS_Store
+data/

@@ -235,3 +235,22 @@ node server.js
 
 ## 📄 授權條款 (License)
 本專案採用 [MIT License](LICENSE) 進行授權。
+
+---
+
+## Yutis Host 多民宿（租戶）：潮裡小木屋 demo
+
+bazar 維持原本的網址與行為（`/bzzar`、`/api/...`、`db.json`）。其他民宿在 `tenants.js` 註冊，各自有路徑、資料庫與後台密碼：
+
+| 民宿 | 官網 | 後台 | 資料庫 | 示範密碼 |
+| --- | --- | --- | --- | --- |
+| 潮裡小木屋 TIDE HOUSE | `/tidehouse/` | `/tidehouse/admin` | `data/tidehouse.db.json`（首次啟動自動建立示範資料） | `tide888` |
+
+- **API**：同一套路由，民宿的 API 走自己的路徑前綴，例如 `/tidehouse/api/bookings`。
+- **自有網域**：`tenants.js` 的 `domains` 列出的網域（示範：`tidehouse.localhost`）會直接對應到該民宿，`/` 就是民宿首頁。
+- **空房與庫存**：房型設定 `units`（間數）後，訂房會檢查每晚剩餘間數，客滿或關房的日期無法下單（HTTP 409）。已付款訂單佔房；待付款訂單信用卡保留 30 分鐘、轉帳保留 24 小時。bazar 的房型沒有 `units`，所以不受影響。
+- **房態日曆**：後台可逐日關房、改當日價（`/api/admin/inventory`）。
+- **付款頁**：沿用 bazar 的 `payment.html`（TapPay + 銀行轉帳），由伺服器換成民宿名稱、配色與 API 前綴。
+- **加購項目**：`siteConfig.addons`（價格 × 數量），後台可編輯。
+
+重設示範資料：刪除 `data/tidehouse.db.json` 後重新啟動。

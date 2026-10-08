@@ -2,10 +2,18 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const { AsyncLocalStorage } = require('async_hooks');
+const TENANTS = require('./tenants');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DB_PATH = path.join(__dirname, 'db.json');
+
+// The tenant (B&B) the current request belongs to. Everything that touches the
+// database reads it from here, so the same route handlers serve every tenant.
+const tenantStore = new AsyncLocalStorage();
+function tenant() {
+  return tenantStore.getStore() || TENANTS.bazar;
+}
 
 // TapPay payment gateway (Direct Pay / Pay by Prime)
 // Key resolution order: tappay.local.json (gitignored) > environment
@@ -90,6 +98,7 @@ function sendPaymentConfirmationEmail(booking) {
   const roomsConfig = (db.siteConfig && db.siteConfig.rooms) || [];
   const roomConf = roomsConfig.find(r => r.id === booking.roomType);
   const roomName = (roomConf && roomConf.name) || roomDisplayNames[booking.roomType] || booking.roomType;
+  const brand = tenant().email;
 
   const packageRows = (booking.packageDetails || []).map(p =>
     `<tr><td style="padding:6px 10px;border-bottom:1px solid #e5e7eb;">${p.name}</td>` +
@@ -99,13 +108,13 @@ function sendPaymentConfirmationEmail(booking) {
 
   const html = `
   <div style="font-family:'Microsoft JhengHei',Arial,sans-serif;max-width:600px;margin:0 auto;color:#1f2937;">
-    <div style="background:linear-gradient(135deg,#3a8a50,#1e4d2b);border-radius:12px 12px 0 0;padding:24px;text-align:center;color:#ffffff;">
-      <h1 style="margin:0;font-size:22px;">🌴 bazar花園 芭扎民宿</h1>
+    <div style="background:${brand.headerBg};border-radius:12px 12px 0 0;padding:24px;text-align:center;color:#ffffff;">
+      <h1 style="margin:0;font-size:22px;">${brand.header}</h1>
       <p style="margin:8px 0 0;font-size:14px;opacity:.9;">訂房付款成功確認信</p>
     </div>
     <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:24px;">
       <p>${booking.name} 您好：</p>
-      <p>我們已成功收到您的款項，房間已為您保留完成！民宿主人將會儘快與您電話聯繫確認交通船班資訊。</p>
+      <p>${brand.intro}</p>
       <table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0;">
         <tr><td style="padding:6px 10px;color:#6b7280;width:120px;">訂單編號</td><td style="padding:6px 10px;font-weight:bold;">${booking.id}</td></tr>
         <tr><td style="padding:6px 10px;color:#6b7280;">房型</td><td style="padding:6px 10px;">${roomName}（${booking.nights} 晚）</td></tr>
@@ -121,7 +130,7 @@ function sendPaymentConfirmationEmail(booking) {
       <p style="font-size:12px;color:#6b7280;">付款方式：信用卡（末四碼 ${booking.payment ? booking.payment.cardLastFour : ''}）｜交易編號：${booking.payment ? booking.payment.recTradeId : ''}</p>
       <hr style="border:none;border-top:1px solid #e5e7eb;margin:16px 0;">
       <p style="font-size:12px;color:#6b7280;">
-        芭扎民宿 bazar花園｜屏東縣琉球鄉｜電話：0975-080-788<br>
+        ${brand.footer}<br>
         此為系統自動發送的信件，請勿直接回覆。
       </p>
     </div>
@@ -130,7 +139,7 @@ function sendPaymentConfirmationEmail(booking) {
   mailTransporter.sendMail({
     from: MAIL.from || MAIL.user,
     to: booking.email,
-    subject: `【bazar花園】訂房付款成功確認 - 訂單 ${booking.id}`,
+    subject: `${brand.subjectTag}訂房付款成功確認 - 訂單 ${booking.id}`,
     html
   }).then(info => {
     console.log(`Email: confirmation sent to ${booking.email} for ${booking.id} (${info.messageId})`);
@@ -139,15 +148,12 @@ function sendPaymentConfirmationEmail(booking) {
   });
 }
 
-// Configure Multer for local uploads
-const UPLOADS_DIR = path.join(__dirname, 'public', 'assets', 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) {
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
-
+// Configure Multer for local uploads (each tenant uploads into its own public dir)
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, UPLOADS_DIR);
+    const dir = path.join((req.tenant || TENANTS.bazar).publicDir, 'assets', 'uploads');
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -158,8 +164,29 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
+// Tenant routing. A request belongs to a tenant when its path starts with the
+// tenant's basePath (/tidehouse/...) or its Host header is one of the tenant's
+// custom domains. Tenant API calls (/tidehouse/api/x) are rewritten to /api/x
+// so they hit the shared route handlers below. Everything else is bazar.
+const otherTenants = Object.values(TENANTS).filter(t => t.slug !== 'bazar');
+app.use((req, res, next) => {
+  let t = otherTenants.find(x => x.domains.includes(req.hostname));
+  if (t && !req.url.startsWith(t.basePath + '/') && req.url !== t.basePath) {
+    req.url = t.basePath + (req.url === '/' ? '/' : req.url);
+  }
+  t = t || otherTenants.find(x => req.url === x.basePath || req.url.startsWith(x.basePath + '/') || req.url.startsWith(x.basePath + '?'));
+  if (t && req.url.startsWith(t.basePath + '/api/')) {
+    req.url = req.url.slice(t.basePath.length);
+  }
+  req.tenant = t || TENANTS.bazar;
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+// Body parsing is async, so (re)enter the tenant context once it is done.
+app.use((req, res, next) => tenantStore.run(req.tenant, next));
+
 app.use('/bzzar', express.static(path.join(__dirname, 'public'), {
   etag: false,
   lastModified: false,
@@ -169,6 +196,31 @@ app.use('/bzzar', express.static(path.join(__dirname, 'public'), {
     res.setHeader('Expires', '0');
   }
 }));
+
+// Other tenants reuse bazar's payment page (TapPay + transfer), rebranded and
+// pointed at the tenant's API prefix.
+function tenantPaymentPage(t) {
+  const db = readDb();
+  const brand = (db.siteConfig && db.siteConfig.brand) || {};
+  const c = brand.colors || {};
+  const theme = `<style>:root{--primary-color:${c.p || '#2e6f40'};--secondary-color:${c.d || '#1b4965'};--accent-color:${c.p || '#f58f29'};--bg-color:${c.bg || '#f8fbf9'}}</style>`;
+  return fs.readFileSync(path.join(__dirname, 'public', 'payment.html'), 'utf8')
+    .replace(/fetch\('\/api\//g, `fetch('${t.apiPrefix}/api/`)
+    .replace(/fetch\(`\/api\//g, `fetch(\`${t.apiPrefix}/api/`)
+    .replace(/bazar花園/g, t.name)
+    .replace(/href="css\/style.css">/, `href="/bzzar/css/style.css">${theme}`)
+    .replace(/\s*<link rel="(apple-touch-icon|shortcut icon|icon" type="image\/png)"[^>]*>/g, '')
+    .replace('`./?edit=${bookingId}#booking`', '`book.html?edit=${bookingId}`');
+}
+
+otherTenants.forEach(t => {
+  app.get(t.basePath, (req, res, next) =>
+    req.path === t.basePath ? res.redirect(t.basePath + '/') : next());
+  app.get(t.basePath + '/payment.html', (req, res) => res.type('html').send(tenantPaymentPage(t)));
+  app.get(t.basePath + '/admin', (req, res) => res.sendFile(path.join(t.publicDir, 'admin.html')));
+  app.use(t.basePath, express.static(t.publicDir, { etag: false, lastModified: false,
+    setHeaders: res => res.setHeader('Cache-Control', 'no-store') }));
+});
 
 // Redirect root to /bzzar/
 app.get('/', (req, res) => {
@@ -180,23 +232,29 @@ app.get('/bzzar', (req, res) => {
   res.redirect('/bzzar/');
 });
 
-// Simple JSON Database Initialization
+// Simple JSON Database Initialization (one file per tenant)
+function emptyDb() {
+  return { bookings: [], settings: { adminPassword: tenant().defaultPassword } };
+}
+
 function readDb() {
-  if (!fs.existsSync(DB_PATH)) {
-    fs.writeFileSync(DB_PATH, JSON.stringify({ bookings: [], settings: { adminPassword: 'bazar888' } }, null, 2), 'utf8');
+  const t = tenant();
+  if (!fs.existsSync(t.dbPath)) {
+    fs.mkdirSync(path.dirname(t.dbPath), { recursive: true });
+    fs.writeFileSync(t.dbPath, JSON.stringify(t.seed ? t.seed() : emptyDb(), null, 2), 'utf8');
   }
   try {
-    const data = fs.readFileSync(DB_PATH, 'utf8');
+    const data = fs.readFileSync(t.dbPath, 'utf8');
     return JSON.parse(data);
   } catch (err) {
     console.error('Error reading DB, returning empty structure:', err);
-    return { bookings: [], settings: { adminPassword: 'bazar888' } };
+    return emptyDb();
   }
 }
 
 function writeDb(data) {
   try {
-    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf8');
+    fs.writeFileSync(tenant().dbPath, JSON.stringify(data, null, 2), 'utf8');
     return true;
   } catch (err) {
     console.error('Error writing DB:', err);
@@ -232,11 +290,17 @@ function calculatePrice(bookingData) {
     consecutive: roomConf.priceConsecutive
   } : { weekday: 2000, summer: 2800, holiday: 2800, consecutive: 3200 };
 
+  const weekendDays = tenant().weekendDays; // bazar: Fri/Sat/Sun
+  const overrides = (dbData.inventory && dbData.inventory[roomType]) || {};
+
   for (let i = 0; i < nights; i++) {
-    const dayOfWeek = currentDate.getDay(); // 0: Sun, 1: Mon, ... 6: Sat
-    const isWeekend = (dayOfWeek === 5 || dayOfWeek === 6 || dayOfWeek === 0); // Friday, Saturday, Sunday
-    
-    if (isHolidayPackage) {
+    const dayOfWeek = currentDate.getUTCDay(); // 0: Sun, 1: Mon, ... 6: Sat
+    const isWeekend = weekendDays.includes(dayOfWeek);
+    const override = overrides[currentDate.toISOString().slice(0, 10)];
+
+    if (override && override.price > 0) {
+      roomPrice += override.price; // 房態日曆「改當日價」
+    } else if (isHolidayPackage) {
       roomPrice += rates.consecutive;
     } else if (isSummer) {
       roomPrice += rates.summer;
@@ -251,8 +315,18 @@ function calculatePrice(bookingData) {
   // 2. Calculate Packages Price
   let packagePrice = 0;
   const packageDetails = [];
+  const addons = dbData.siteConfig && dbData.siteConfig.addons;
 
-  if (packages) {
+  if (packages && Array.isArray(addons)) {
+    // Generic add-ons (tenants other than bazar): packages = { addonId: count }
+    addons.forEach(a => {
+      const count = Math.max(0, Math.min(50, parseInt(packages[a.id], 10) || 0));
+      if (!count) return;
+      const cost = count * a.price;
+      packagePrice += cost;
+      packageDetails.push({ name: a.name, cost, desc: `${count} ${a.unit}` });
+    });
+  } else if (packages) {
     // Round-trip ferry ticket: Adult 430, Child (3-12) 200
     if (packages.ferry) {
       const ferryAdult = (parseInt(packages.ferryAdultCount) || 0) * 430;
@@ -361,7 +435,106 @@ function calculatePrice(bookingData) {
   };
 }
 
+// ---- Room inventory / availability (房態) ----
+// A room type with `units` set has a fixed inventory per night; rooms without
+// it (bazar today) are never checked, so their behavior is unchanged.
+// A night counts as occupied by Paid/Completed bookings, and by Pending ones
+// that are still inside their hold window (card 30 min, transfer 24 h).
+function dateRange(checkIn, checkOut) {
+  const out = [];
+  const d = new Date(checkIn + 'T00:00:00Z');
+  const end = new Date(checkOut + 'T00:00:00Z');
+  if (isNaN(d) || isNaN(end)) return out;
+  while (d < end && out.length < 366) {
+    out.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
+}
+
+function isHolding(b, now = Date.now()) {
+  if (b.paymentStatus === 'Paid' || b.paymentStatus === 'Completed') return true;
+  if (b.paymentStatus !== 'Pending') return false;
+  const t = tenant();
+  const minutes = b.paymentMethod === 'transfer' ? (t.transferHoldMinutes || t.holdMinutes) : t.holdMinutes;
+  return minutes > 0 && now - new Date(b.createdAt).getTime() < minutes * 60000;
+}
+
+// Per-night inventory for one room type: { date: { units, booked, held, closed, left, price } }
+function roomNights(db, room, dates, excludeId) {
+  const inv = (db.inventory && db.inventory[room.id]) || {};
+  const weekendDays = tenant().weekendDays;
+  const now = Date.now();
+  const map = {};
+  dates.forEach(date => {
+    const o = inv[date] || {};
+    const weekend = weekendDays.includes(new Date(date + 'T00:00:00Z').getUTCDay());
+    map[date] = {
+      units: o.units !== undefined ? o.units : room.units,
+      booked: 0, held: 0, closed: !!o.closed,
+      price: o.price > 0 ? o.price : (weekend ? room.priceHoliday : room.priceWeekday),
+      weekend, guests: []
+    };
+  });
+  db.bookings.forEach(b => {
+    if (b.roomType !== room.id || b.id === excludeId || !isHolding(b, now)) return;
+    dateRange(b.checkIn, b.checkOut).forEach(date => {
+      const n = map[date];
+      if (!n) return;
+      if (b.paymentStatus === 'Pending') n.held++; else n.booked++;
+      n.guests.push({ id: b.id, name: b.name, status: b.paymentStatus });
+    });
+  });
+  Object.values(map).forEach(n => {
+    n.left = n.closed ? 0 : Math.max(0, n.units - n.booked - n.held);
+  });
+  return map;
+}
+
+// Minimum rooms left over a stay; Infinity when the room has no inventory.
+function roomsLeft(db, room, checkIn, checkOut, excludeId) {
+  if (room.units === undefined) return Infinity;
+  const nights = roomNights(db, room, dateRange(checkIn, checkOut), excludeId);
+  return Math.min(...Object.values(nights).map(n => n.left));
+}
+
 // ----------------- APIs -----------------
+
+// 0. Availability for a stay: every room type with rooms left and its quote
+app.get('/api/availability', (req, res) => {
+  const { checkIn, checkOut } = req.query;
+  const guests = (parseInt(req.query.adults, 10) || 1) + (parseInt(req.query.kids, 10) || 0);
+  if (!checkIn || !checkOut || dateRange(checkIn, checkOut).length === 0) {
+    return res.status(400).json({ success: false, message: '請選擇正確的入住與退房日期。' });
+  }
+  const db = readDb();
+  const rooms = ((db.siteConfig && db.siteConfig.rooms) || []).map(room => {
+    const left = roomsLeft(db, room, checkIn, checkOut);
+    const quote = calculatePrice({ roomType: room.id, checkIn, checkOut, adults: guests, kids: 0 });
+    return {
+      id: room.id, name: room.name,
+      left: left === Infinity ? null : left,
+      available: left > 0,
+      fits: !room.maxGuests || guests <= room.maxGuests,
+      nights: quote.nights, roomPrice: quote.roomPrice
+    };
+  });
+  res.json({ success: true, rooms });
+});
+
+// 0-1. Month calendar for one room type (room detail page)
+app.get('/api/availability/calendar', (req, res) => {
+  const db = readDb();
+  const room = ((db.siteConfig && db.siteConfig.rooms) || []).find(r => r.id === req.query.roomId);
+  if (!room) return res.status(404).json({ success: false, message: '找不到此房型。' });
+  const month = /^\d{4}-\d{2}$/.test(req.query.month || '') ? req.query.month : new Date().toISOString().slice(0, 7);
+  const start = month + '-01';
+  const next = new Date(start + 'T00:00:00Z');
+  next.setUTCMonth(next.getUTCMonth() + 1);
+  const nights = roomNights(db, room, dateRange(start, next.toISOString().slice(0, 10)));
+  const days = Object.entries(nights).map(([date, n]) => ({ date, left: n.left, price: n.price, closed: n.closed }));
+  res.json({ success: true, month, days });
+});
 
 // 1. Submit Booking Request
 app.post('/api/bookings', (req, res) => {
@@ -375,6 +548,21 @@ app.post('/api/bookings', (req, res) => {
 
   const db = readDb();
 
+  // Inventory check (only for room types that have `units`) — prevents overbooking
+  const roomConf = ((db.siteConfig && db.siteConfig.rooms) || []).find(r => r.id === roomType);
+  if (roomConf && roomConf.units !== undefined) {
+    if (dateRange(checkIn, checkOut).length === 0) {
+      return res.status(400).json({ success: false, message: '請選擇正確的入住與退房日期。' });
+    }
+    const guests = (parseInt(adults) || 1) + (parseInt(kids) || 0);
+    if (roomConf.maxGuests && guests > roomConf.maxGuests) {
+      return res.status(400).json({ success: false, message: `${roomConf.name}最多入住 ${roomConf.maxGuests} 人。` });
+    }
+    if (roomsLeft(db, roomConf, checkIn, checkOut) <= 0) {
+      return res.status(409).json({ success: false, message: `${roomConf.name}在您選的日期已客滿，請換日期或房型。` });
+    }
+  }
+
   // Promo code is re-validated server-side; the discount never comes from the client
   let promo = null;
   let discount = 0;
@@ -387,7 +575,8 @@ app.post('/api/bookings', (req, res) => {
     discount = check.discount;
   }
 
-  const bookingId = 'BZ' + Date.now().toString().slice(-8) + Math.floor(Math.random() * 10);
+  const idPrefix = tenant().idPrefix || 'BZ';
+  const bookingId = idPrefix + Date.now().toString().slice(-8) + Math.floor(Math.random() * 10);
 
   const newBooking = {
     id: bookingId,
@@ -395,6 +584,7 @@ app.post('/api/bookings', (req, res) => {
     phone,
     email: email || '',
     roomType,
+    roomName: roomConf ? roomConf.name : (roomDisplayNames[roomType] || roomType),
     checkIn,
     checkOut,
     nights: calculation.nights,
@@ -449,6 +639,22 @@ app.put('/api/bookings/:id/cancel', (req, res) => {
   booking.paymentStatus = 'Cancelled';
   writeDb(db);
   res.json({ success: true, booking });
+});
+
+// 2-1b. Guest picked bank transfer on the payment page: keep the room held
+// for the transfer window instead of the short card window.
+app.put('/api/bookings/:id/method', (req, res) => {
+  const db = readDb();
+  const booking = db.bookings.find(b => b.id === req.params.id);
+  if (!booking) {
+    return res.status(404).json({ success: false, message: '找不到此訂單。' });
+  }
+  if (booking.paymentStatus === 'Pending' && ['card', 'transfer'].includes(req.body.method)) {
+    // Only extend while the original hold is still valid
+    if (req.body.method === 'card' || isHolding(booking)) booking.paymentMethod = req.body.method;
+    writeDb(db);
+  }
+  res.json({ success: true });
 });
 
 // 2-2. Guest booking lookup by phone (booking id optional to narrow down)
@@ -640,6 +846,12 @@ app.post('/api/payment/pay', async (req, res) => {
   if (booking.paymentStatus === 'Cancelled') {
     return res.status(400).json({ success: false, message: '此訂單已取消，無法付款。' });
   }
+  // The hold expired and someone else took the last room in the meantime
+  const payRoom = ((db.siteConfig && db.siteConfig.rooms) || []).find(r => r.id === booking.roomType);
+  if (payRoom && payRoom.units !== undefined && !isHolding(booking) &&
+      roomsLeft(db, payRoom, booking.checkIn, booking.checkOut, booking.id) <= 0) {
+    return res.status(409).json({ success: false, message: '保留時間已過，這段日期的房間已被訂走，請重新選擇日期。' });
+  }
 
   try {
     const payload = {
@@ -649,11 +861,11 @@ app.post('/api/payment/pay', async (req, res) => {
       amount: booking.totalPrice, // TWD: no x100 conversion needed
       currency: 'TWD',
       order_number: booking.id,
-      details: `芭扎民宿訂房 ${booking.checkIn}~${booking.checkOut}`.slice(0, 100),
+      details: `${tenant().tradeName}訂房 ${booking.checkIn}~${booking.checkOut}`.slice(0, 100),
       cardholder: {
         phone_number: booking.phone,
         name: booking.name,
-        email: booking.email || 'guest@bazar.idv.tw'
+        email: booking.email || tenant().email.fallbackEmail
       },
       remember: false
     };
@@ -667,8 +879,8 @@ app.post('/api/payment/pay', async (req, res) => {
       const notifyBase = baseUrl.replace(/^http:\/\//, 'https://');
       payload.three_domain_secure = true;
       payload.result_url = {
-        frontend_redirect_url: `${baseUrl}/bzzar/payment.html?id=${encodeURIComponent(booking.id)}&threeds=1`,
-        backend_notify_url: `${notifyBase}/api/payment/notify`
+        frontend_redirect_url: `${baseUrl}${tenant().basePath}/payment.html?id=${encodeURIComponent(booking.id)}&threeds=1`,
+        backend_notify_url: `${notifyBase}${tenant().apiPrefix}/api/payment/notify`
       };
     }
 
@@ -764,7 +976,7 @@ app.post('/api/admin/login', (req, res) => {
   const db = readDb();
   if (password === db.settings.adminPassword) {
     // In a real application, we would sign a JWT. Here we use a secure token string.
-    res.json({ success: true, token: 'bazar-admin-super-token-12345' });
+    res.json({ success: true, token: tenant().adminToken });
   } else {
     res.status(401).json({ success: false, message: '密碼錯誤！' });
   }
@@ -773,7 +985,7 @@ app.post('/api/admin/login', (req, res) => {
 // Middleware for Admin Token check
 function requireAdmin(req, res, next) {
   const authHeader = req.headers.authorization;
-  if (authHeader === 'Bearer bazar-admin-super-token-12345') {
+  if (authHeader === 'Bearer ' + tenant().adminToken) {
     next();
   } else {
     res.status(403).json({ success: false, message: '權限不足。' });
@@ -1058,6 +1270,59 @@ app.put('/api/admin/config/about', requireAdmin, (req, res) => {
   writeDb(db);
 
   res.json({ success: true, message: '關於芭扎內容更新成功。' });
+});
+
+// 17. Admin API - Room calendar (房態日曆): per room type, per night
+app.get('/api/admin/inventory', requireAdmin, (req, res) => {
+  const db = readDb();
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '') ? req.query.from : new Date().toISOString().slice(0, 10);
+  const days = Math.min(62, Math.max(1, parseInt(req.query.days, 10) || 14));
+  const end = new Date(from + 'T00:00:00Z');
+  end.setUTCDate(end.getUTCDate() + days);
+  const dates = dateRange(from, end.toISOString().slice(0, 10));
+  const rooms = ((db.siteConfig && db.siteConfig.rooms) || [])
+    .filter(r => r.units !== undefined)
+    .map(r => ({ id: r.id, name: r.name, units: r.units, priceWeekday: r.priceWeekday,
+      priceHoliday: r.priceHoliday, nights: roomNights(db, r, dates) }));
+  res.json({ success: true, from, dates, rooms });
+});
+
+// 17-1. Admin API - Close/open rooms or change the nightly price for dates
+app.put('/api/admin/inventory', requireAdmin, (req, res) => {
+  const { roomId, dates, closed, price } = req.body;
+  const db = readDb();
+  const room = ((db.siteConfig && db.siteConfig.rooms) || []).find(r => r.id === roomId);
+  if (!room || !Array.isArray(dates) || !dates.every(d => /^\d{4}-\d{2}-\d{2}$/.test(d))) {
+    return res.status(400).json({ success: false, message: '房型或日期不正確。' });
+  }
+  db.inventory = db.inventory || {};
+  const inv = db.inventory[roomId] = db.inventory[roomId] || {};
+  dates.forEach(d => {
+    const o = inv[d] || {};
+    if (closed !== undefined) o.closed = !!closed;
+    if (price !== undefined) o.price = parseInt(price, 10) > 0 ? parseInt(price, 10) : 0;
+    if (!o.closed && !o.price) delete inv[d]; else inv[d] = o;
+  });
+  writeDb(db);
+  res.json({ success: true, message: '房態已更新。' });
+});
+
+// 17-2. Admin API - Add-ons (加購項目)
+app.put('/api/admin/config/addons', requireAdmin, (req, res) => {
+  const { addons } = req.body;
+  if (!Array.isArray(addons) || !addons.every(a => a && a.id && a.name && parseInt(a.price, 10) >= 0)) {
+    return res.status(400).json({ success: false, message: '加購資料結構不正確。' });
+  }
+  const db = readDb();
+  db.siteConfig = db.siteConfig || {};
+  db.siteConfig.addons = addons.map(a => ({ id: String(a.id), name: String(a.name), price: parseInt(a.price, 10), unit: String(a.unit || '人') }));
+  writeDb(db);
+  res.json({ success: true, message: '加購項目已更新。' });
+});
+
+// Unknown paths under another tenant fall back to that tenant's homepage
+otherTenants.forEach(t => {
+  app.get(t.basePath + '/*', (req, res) => res.sendFile(path.join(t.publicDir, 'index.html')));
 });
 
 // Fallback: Route /bzzar/* requests to index.html (SPA feel)
